@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, Trash2, AlertCircle, CheckCircle2, RefreshCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/PageHeader';
@@ -11,9 +11,12 @@ import {
   getUploadedFiles,
   saveUploadedFiles,
   clearDataByType,
-  getSalesData,
-  getSOHDataByRegion,
+  getSalesCount,
+  getSOHCountByRegion,
+  invalidateCache,
 } from '@/lib/dataStore';
+import { syncSettingsWithData } from '@/lib/orderSettings';
+import { cn } from '@/lib/utils';
 import type { UploadedFile } from '@/lib/types';
 import { toast } from 'sonner';
 import {
@@ -61,14 +64,15 @@ export default function UploadPage() {
   const [dragOver, setDragOver] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [showTypeDialog, setShowTypeDialog] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    Promise.all([getUploadedFiles(), getSalesData(), getSOHDataByRegion('jkt'), getSOHDataByRegion('sby')]).then(([f, s, jkt, sby]) => {
+    Promise.all([getUploadedFiles(), getSalesCount(), getSOHCountByRegion('jkt'), getSOHCountByRegion('sby')]).then(([f, s, jkt, sby]) => {
       setFiles(f);
-      setSalesCount(s.length);
-      setSohJktCount(jkt.length);
-      setSohSbyCount(sby.length);
+      setSalesCount(s);
+      setSohJktCount(jkt);
+      setSohSbyCount(sby);
     });
   }, []);
 
@@ -77,10 +81,10 @@ export default function UploadPage() {
   const hasSohSby = files.some(f => f.type === 'soh-sby');
 
   const refreshCounts = useCallback(async () => {
-    const [s, jkt, sby] = await Promise.all([getSalesData(), getSOHDataByRegion('jkt'), getSOHDataByRegion('sby')]);
-    setSalesCount(s.length);
-    setSohJktCount(jkt.length);
-    setSohSbyCount(sby.length);
+    const [s, jkt, sby] = await Promise.all([getSalesCount(), getSOHCountByRegion('jkt'), getSOHCountByRegion('sby')]);
+    setSalesCount(s);
+    setSohJktCount(jkt);
+    setSohSbyCount(sby);
   }, []);
 
   const processFile = async (file: File, type: DataType) => {
@@ -131,7 +135,6 @@ export default function UploadPage() {
         await processFile(pf.file, pf.detectedType);
       } catch (err) {
         console.error(`[Upload Error] ${pf.file.name}:`, err);
-        toast.error(`Gagal memproses ${pf.file.name}: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
     }
     setPendingFiles([]);
@@ -140,6 +143,23 @@ export default function UploadPage() {
     // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [pendingFiles, refreshCounts]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      invalidateCache();
+      await syncSettingsWithData();
+      await refreshCounts();
+      const f = await getUploadedFiles();
+      setFiles(f);
+      toast.success('Pengaturan disinkronkan dengan data terbaru');
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal menyinkronkan data');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const updatePendingType = (index: number, type: DataType) => {
     setPendingFiles(prev => prev.map((pf, i) => i === index ? { ...pf, detectedType: type } : pf));
@@ -155,7 +175,18 @@ export default function UploadPage() {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
-      <PageHeader title="Upload Data" description="Upload file Excel penjualan (Sales) dan stok (SOH Jakarta & Surabaya)" />
+      <PageHeader title="Upload Data" description="Upload file Excel penjualan (Sales) dan stok (SOH Jakarta & Surabaya)">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="gap-1.5" 
+          onClick={handleRefresh}
+          disabled={refreshing || uploading}
+        >
+          <RefreshCcw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
+          {refreshing ? 'Sinkronisasi...' : 'Terapkan Pengaturan'}
+        </Button>
+      </PageHeader>
 
       {/* Drop zone */}
       <div

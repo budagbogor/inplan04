@@ -7,10 +7,16 @@ import {
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/PageHeader';
 import { StatCard } from '@/components/StatCard';
-import { getSOHData, getSalesData, formatCurrency, formatNumber } from '@/lib/dataStore';
+import { getSOHData, getSalesData, getSkuSummaries, formatCurrency, formatNumber } from '@/lib/dataStore';
 import { filterByActiveStores, getOrderSettings } from '@/lib/orderSettings';
 import { calculateStoreOrders } from '@/lib/storeOrders';
-import type { SOHRecord, StoreOrderSummary } from '@/lib/types';
+import type { SOHRecord, StoreOrderSummary, SkuSummary } from '@/lib/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 /* ─── Types ─── */
 interface StoreHealth {
@@ -210,13 +216,16 @@ export default function AnalysisPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [expandedStore, setExpandedStore] = useState<string | null>(null);
+  const [skuSummaries, setSkuSummaries] = useState<SkuSummary[]>([]);
+  const [selectedSku, setSelectedSku] = useState<SkuSummary | null>(null);
 
   useEffect(() => {
-    Promise.all([getSOHData(), getSalesData()]).then(([sohData]) => {
+    Promise.all([getSOHData(), getSalesData()]).then(([sohData, salesData]) => {
       const settings = getOrderSettings();
-      const filtered = filterByActiveStores(sohData, settings);
-      setSoh(filtered);
-      setOrderSummaries(calculateStoreOrders(filtered, settings));
+      const filteredSoh = filterByActiveStores(sohData, settings);
+      setSoh(filteredSoh);
+      setOrderSummaries(calculateStoreOrders(filteredSoh, settings));
+      setSkuSummaries(getSkuSummaries(salesData, filteredSoh));
       setLoading(false);
     });
   }, []);
@@ -230,6 +239,13 @@ export default function AnalysisPage() {
       s.namaToko.toLowerCase().includes(q) || s.kodeToko.toLowerCase().includes(q)
     );
   }, [health.stores, search]);
+
+  const wsSkus = useMemo(() => {
+    return skuSummaries.filter(s => {
+      const tag = s.tagProduk?.toUpperCase();
+      return tag === 'W' || tag === 'S';
+    });
+  }, [skuSummaries]);
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground text-sm">Memuat data...</div>;
 
@@ -304,6 +320,89 @@ export default function AnalysisPage() {
           </div>
         </div>
       )}
+
+      {/* ─── W/S Tag SKU Analysis ─── */}
+      {wsSkus.length > 0 && (
+        <div className="bg-card rounded-xl border shadow-card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Package className="w-4 h-4 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground">Penjualan SKU Tag W/S</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/50">
+                  <th className="text-left px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">SKU / Nama Produk</th>
+                  <th className="text-center px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tag</th>
+                  <th className="text-right px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Toko Penjualan</th>
+                  <th className="text-right px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total Qty Sold</th>
+                  <th className="text-right px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wsSkus.map((sku, i) => (
+                  <tr 
+                    key={sku.kodeProduk} 
+                    className={`border-t hover:bg-muted/20 cursor-pointer transition-colors ${i % 2 === 0 ? '' : 'bg-muted/10'}`}
+                    onClick={() => setSelectedSku(sku)}
+                  >
+                    <td className="px-3 py-2">
+                      <p className="font-semibold text-foreground text-xs">{sku.namaPanjang}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{sku.kodeProduk}</p>
+                    </td>
+                    <td className="px-3 py-2 text-center text-xs font-bold text-primary">{sku.tagProduk}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs">{sku.storeCount} toko</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs">{formatNumber(sku.totalQtySold)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrency(sku.totalRevenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Store List Dialog ─── */}
+      <Dialog open={!!selectedSku} onOpenChange={(open) => !open && setSelectedSku(null)}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold flex flex-col gap-1">
+              <span>Detail Stok & Penjualan per Toko</span>
+              <span className="text-xs font-normal text-muted-foreground">{selectedSku?.namaPanjang} ({selectedSku?.kodeProduk})</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-4 max-h-[60vh] overflow-y-auto border rounded-lg">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-card z-10">
+                <tr className="bg-muted shadow-sm">
+                  <th className="text-left px-3 py-2 text-[10px] font-bold text-muted-foreground uppercase">Kode</th>
+                  <th className="text-left px-3 py-2 text-[10px] font-bold text-muted-foreground uppercase">Nama Toko</th>
+                  <th className="text-right px-3 py-2 text-[10px] font-bold text-muted-foreground uppercase">Stok (SOH)</th>
+                  <th className="text-right px-3 py-2 text-[10px] font-bold text-muted-foreground uppercase">Penjualan</th>
+                  <th className="text-right px-3 py-2 text-[10px] font-bold text-muted-foreground uppercase">Nilai Stok</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {selectedSku?.storeDetails.map((store) => (
+                  <tr key={store.kodeToko} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-3 py-2 text-[10px] font-mono whitespace-nowrap">{store.kodeToko}</td>
+                    <td className="px-3 py-2 text-xs font-medium">{store.namaToko}</td>
+                    <td className={`px-3 py-2 text-right font-mono text-xs ${store.soh > 0 ? 'text-foreground' : 'text-muted-foreground/50'}`}>
+                      {formatNumber(store.soh)}
+                    </td>
+                    <td className={`px-3 py-2 text-right font-mono text-xs ${store.salesQty > 0 ? 'text-primary font-bold' : 'text-muted-foreground/50'}`}>
+                      {formatNumber(store.salesQty)}
+                    </td>
+                    <td className={`px-3 py-2 text-right font-mono text-xs ${store.stockValue > 0 ? 'text-foreground' : 'text-muted-foreground/50'}`}>
+                      {formatCurrency(store.stockValue)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ─── Per-Store Health ─── */}
       <div className="flex items-center justify-between gap-4">

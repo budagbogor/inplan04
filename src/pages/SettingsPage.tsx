@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Settings, Plus, Trash2, Save, RotateCcw, Store, Search, Package, ChevronDown, Truck, Tag, Layers, BookOpen } from 'lucide-react';
+import { Settings, Plus, Trash2, Save, RotateCcw, Search, Package, ChevronDown, Truck, Layers, BookOpen, RefreshCcw } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { getOrderSettings, saveOrderSettings, DEFAULT_ORDER_SETTINGS } from '@/lib/orderSettings';
-import { getSOHData } from '@/lib/dataStore';
+import { getOrderSettings, saveOrderSettings, DEFAULT_ORDER_SETTINGS, syncSettingsWithData } from '@/lib/orderSettings';
+import { getSOHData, invalidateCache } from '@/lib/dataStore';
 import type { OrderSettings, SupplierLeadTime, SOHRecord } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -91,9 +91,22 @@ export default function SettingsPage() {
   const [skuSearch, setSkuSearch] = useState('');
   const [newSupplier, setNewSupplier] = useState('');
 
-  useEffect(() => {
-    const savedSettings = getOrderSettings();
-    getSOHData().then(soh => {
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchAppData = async (isManualRefresh = false) => {
+    if (isManualRefresh) {
+      setRefreshing(true);
+      invalidateCache();
+    }
+    
+    try {
+      const updatedSettings = await syncSettingsWithData();
+      setSettings(updatedSettings);
+
+      // Re-fetch SOH to populate the specific filter lists in UI (selectors)
+      const soh = await getSOHData();
+      
       const s = new Set(soh.map(r => r.supplier).filter(Boolean));
       setSuppliers(Array.from(s).sort());
       setAllVendors(Array.from(s).sort());
@@ -124,35 +137,24 @@ export default function SettingsPage() {
       const storeList = Array.from(storeMap.values()).sort((a, b) => a.namaToko.localeCompare(b.namaToko));
       setAllStores(storeList);
 
-      const autoExcludedCodes = storeList
-        .filter(st => {
-          const t = st.namaToko.toLowerCase();
-          return t.includes('dc jakarta') || t.includes('dc jkt') || t.includes('mobeng grab') || t.includes('dc surabaya') || t.includes('dc sby');
-        })
-        .map(st => st.kodeToko);
-      const currentExcluded = savedSettings.excludedStores || [];
-      const mergedExcluded = Array.from(new Set([...currentExcluded, ...autoExcludedCodes]));
+      if (isManualRefresh) {
+        toast.success('Data diperbarui dari server');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal memuat data terbaru');
+    } finally {
+      if (isManualRefresh) setRefreshing(false);
+    }
+  };
 
-      const currentExcludedCats = savedSettings.excludedCategories || [];
-      const autoExcludedCats = catsArray.filter(c => c.toLowerCase() === 'instalasi');
-      const mergedExcludedCats = Array.from(new Set([...currentExcludedCats, ...autoExcludedCats]));
-
-      const currentExcludedBrands = savedSettings.excludedBrands || [];
-      const defaultExcludedBrands = ['jasa', 'coolkars', 'aftermarket', 'after market', 'genuine', 'gimmick', 'iac', 'kagumi', 'jimco', 'oem', 'wurth', 'yokohama', 'yuasa', 'prestone'];
-      const autoExcludedBrands = brandsArray.filter(b => defaultExcludedBrands.includes(b.toLowerCase().trim()));
-      const mergedExcludedBrands = Array.from(new Set([...currentExcludedBrands, ...autoExcludedBrands]));
-
-      // Auto-exclude default vendors from DEFAULT_ORDER_SETTINGS, matched to actual vendor names in SOH
-      const currentExcludedSuppliers = savedSettings.excludedSuppliers || [];
-      const defaultExcludedSupplierSet = new Set((DEFAULT_ORDER_SETTINGS.excludedSuppliers || []).map(s => s.toLowerCase().trim()));
-      const matchedDefaultExcludedSuppliers = Array.from(s).filter(vendor => defaultExcludedSupplierSet.has(vendor.toLowerCase().trim()));
-      const mergedExcludedSuppliers = Array.from(new Set([...currentExcludedSuppliers, ...matchedDefaultExcludedSuppliers]));
-
-      const updatedSettings = { ...savedSettings, excludedStores: mergedExcluded, excludedCategories: mergedExcludedCats, excludedBrands: mergedExcludedBrands, excludedSuppliers: mergedExcludedSuppliers };
-      setSettings(updatedSettings);
-      saveOrderSettings(updatedSettings);
-    });
+  useEffect(() => {
+    fetchAppData();
   }, []);
+
+  const handleRefresh = () => {
+    fetchAppData(true);
+  };
 
   const supplierMap = useMemo(() => {
     const map = new Map<string, SupplierLeadTime>();
@@ -218,7 +220,11 @@ export default function SettingsPage() {
   return (
     <div className="space-y-3 sm:space-y-4 max-w-3xl mx-auto">
       <PageHeader title="Pengaturan Order" description="Parameter perhitungan reorder point & safety stock">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={handleRefresh} variant="outline" size="sm" className="gap-1.5" disabled={refreshing}>
+            <RefreshCcw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
+            {refreshing ? 'Memuat...' : 'Refresh Data'}
+          </Button>
           <Button onClick={handleReset} variant="outline" size="sm" className="gap-1.5">
             <RotateCcw className="w-3.5 h-3.5" /> Reset
           </Button>

@@ -23,7 +23,7 @@ export default function DashboardPage() {
     });
   }, []);
 
-  const skuSummaries = useMemo(() => getSkuSummaries(sales), [sales]);
+  const skuSummaries = useMemo(() => getSkuSummaries(sales, soh), [sales, soh]);
 
   const totalRevenue = sales.reduce((sum, s) => sum + s.subtotal, 0);
   const totalItems = sales.reduce((sum, s) => sum + s.qty, 0);

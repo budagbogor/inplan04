@@ -53,7 +53,19 @@ export interface SkuSummary {
   avgDailySales: number;
   avgMonthlySales: number; // Average of M3, M2, M1
   storeCount: number;
-  movingClass: 'fast' | 'medium' | 'slow' | 'dead'; // Stock classification
+  tagProduk: string;
+  storeDetails: SkuStoreDetail[];
+  movingClass: 'very_fast' | 'fast' | 'medium' | 'slow' | 'dead'; // Stock classification
+  totalSoh: number;
+}
+
+export interface SkuStoreDetail {
+  kodeToko: string;
+  namaToko: string;
+  soh: number;
+  salesQty: number;
+  stockValue: number;
+  movingClass: 'very_fast' | 'fast' | 'medium' | 'slow' | 'dead';
 }
 
 export interface StoreSummary {

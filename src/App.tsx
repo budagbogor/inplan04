@@ -12,6 +12,7 @@ import AverageDemandPage from "./pages/AverageDemandPage";
 import POSupplierPage from "./pages/POSupplierPage";
 import AnalysisPage from "./pages/AnalysisPage";
 import SettingsPage from "./pages/SettingsPage";
+import MovingStockPage from "./pages/MovingStockPage";
 import GuidePage from "./pages/GuidePage";
 import NotFound from "./pages/NotFound";
 
@@ -29,6 +30,7 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/analysis" element={<AnalysisPage />} />
+                <Route path="/moving-stock" element={<MovingStockPage />} />
                 <Route path="/upload" element={<UploadPage />} />
                 <Route path="/average-demand" element={<AverageDemandPage />} />
                 <Route path="/inventory" element={<InventoryPage />} />

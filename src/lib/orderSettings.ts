@@ -86,3 +86,43 @@ export function getOrderSettings(): OrderSettings {
 export function saveOrderSettings(settings: OrderSettings): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
+
+export async function syncSettingsWithData(): Promise<OrderSettings> {
+  // We dynamic import to avoid circular dependency if dataStore imports orderSettings
+  const { getSOHData } = await import('./dataStore');
+  const soh = await getSOHData();
+  const settings = getOrderSettings();
+
+  // 1. Auto-exclude DCs
+  const autoStoreCodes = soh
+    .filter(st => {
+      const t = st.namaToko.toLowerCase();
+      return t.includes('dc jakarta') || t.includes('dc jkt') || t.includes('mobeng grab') || t.includes('dc surabaya') || t.includes('dc sby');
+    })
+    .map(st => st.kodeToko);
+  
+  // 2. Auto-exclude Categories
+  const autoCats = Array.from(new Set(soh.map(r => r.category).filter(Boolean)))
+    .filter(c => c.toLowerCase() === 'instalasi');
+
+  // 3. Auto-exclude Brands
+  const defaultExcludedBrands = ['jasa', 'coolkars', 'aftermarket', 'after market', 'genuine', 'gimmick', 'iac', 'kagumi', 'jimco', 'oem', 'wurth', 'yokohama', 'yuasa', 'prestone'];
+  const autoBrands = Array.from(new Set(soh.map(r => r.brand).filter(Boolean)))
+    .filter(b => defaultExcludedBrands.includes(b.toLowerCase().trim()));
+
+  // 4. Auto-exclude Suppliers
+  const defaultExcludedSuppliers = new Set((DEFAULT_ORDER_SETTINGS.excludedSuppliers || []).map(s => s.toLowerCase().trim()));
+  const autoSuppliers = Array.from(new Set(soh.map(r => r.supplier).filter(Boolean)))
+    .filter(s => defaultExcludedSuppliers.has(s.toLowerCase().trim()));
+
+  const updated: OrderSettings = {
+    ...settings,
+    excludedStores: Array.from(new Set([...(settings.excludedStores || []), ...autoStoreCodes])),
+    excludedCategories: Array.from(new Set([...(settings.excludedCategories || []), ...autoCats])),
+    excludedBrands: Array.from(new Set([...(settings.excludedBrands || []), ...autoBrands])),
+    excludedSuppliers: Array.from(new Set([...(settings.excludedSuppliers || []), ...autoSuppliers])),
+  };
+
+  saveOrderSettings(updated);
+  return updated;
+}

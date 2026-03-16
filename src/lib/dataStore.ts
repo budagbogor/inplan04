@@ -3,6 +3,19 @@ import { parse, format, isValid } from 'date-fns';
 import { supabase } from './supabase';
 import type { SalesRecord, SOHRecord, UploadedFile } from './types';
 
+// In-memory cache
+let salesCache: SalesRecord[] | null = null;
+let sohJktCache: SOHRecord[] | null = null;
+let sohSbyCache: SOHRecord[] | null = null;
+let uploadedFilesCache: UploadedFile[] | null = null;
+
+export function invalidateCache() {
+  salesCache = null;
+  sohJktCache = null;
+  sohSbyCache = null;
+  uploadedFilesCache = null;
+}
+
 type HeaderAliasMap<T extends string> = Record<T, string[]>;
 
 const SALES_COLUMN_ALIASES: HeaderAliasMap<keyof SalesRecord> = {
@@ -330,17 +343,38 @@ export async function saveSalesData(records: SalesRecord[]) {
     })));
 
   if (error) throw error;
+  invalidateCache();
 }
 
 export async function getSalesData(): Promise<SalesRecord[]> {
-  const { data, error } = await supabase
-    .from('sales')
-    .select('*')
-    .order('tanggal', { ascending: false });
+  if (salesCache) return salesCache;
 
-  if (error) throw error;
+  // Fetch all records from Supabase in parallel chunks
+  const totalCount = await getSalesCount();
+  const pageSize = 1000;
+  const numChunks = Math.ceil(totalCount / pageSize);
+  
+  if (numChunks === 0) return [];
 
-  return (data || []).map(r => ({
+  const chunks = await Promise.all(
+    Array.from({ length: numChunks }).map((_, i) => {
+      const from = i * pageSize;
+      const to = from + pageSize - 1;
+      return supabase
+        .from('sales')
+        .select('*')
+        .order('tanggal', { ascending: false })
+        .range(from, to)
+        .then(({ data, error }) => {
+          if (error) throw error;
+          return data || [];
+        });
+    })
+  );
+
+  const allData = chunks.flat();
+
+  salesCache = allData.map(r => ({
     tanggal: r.tanggal,
     namaCabang: r.nama_cabang,
     kodeToko: r.kode_toko,
@@ -359,6 +393,8 @@ export async function getSalesData(): Promise<SalesRecord[]> {
     disc: Number(r.disc),
     subtotal: Number(r.subtotal),
   }));
+
+  return salesCache;
 }
 
 export async function saveSOHDataByRegion(records: SOHRecord[], region: 'jkt' | 'sby') {
@@ -388,17 +424,39 @@ export async function saveSOHDataByRegion(records: SOHRecord[], region: 'jkt' | 
     })));
 
   if (error) throw error;
+  invalidateCache();
 }
 
 export async function getSOHDataByRegion(region: 'jkt' | 'sby'): Promise<SOHRecord[]> {
-  const { data, error } = await supabase
-    .from('soh')
-    .select('*')
-    .eq('region', region);
+  const cache = region === 'jkt' ? sohJktCache : sohSbyCache;
+  if (cache) return cache;
 
-  if (error) throw error;
+  // Fetch all records from Supabase in parallel chunks
+  const totalCount = await getSOHCountByRegion(region);
+  const pageSize = 1000;
+  const numChunks = Math.ceil(totalCount / pageSize);
 
-  return (data || []).map(r => ({
+  if (numChunks === 0) return [];
+
+  const chunks = await Promise.all(
+    Array.from({ length: numChunks }).map((_, i) => {
+      const from = i * pageSize;
+      const to = from + pageSize - 1;
+      return supabase
+        .from('soh')
+        .select('*')
+        .eq('region', region)
+        .range(from, to)
+        .then(({ data, error }) => {
+          if (error) throw error;
+          return data || [];
+        });
+    })
+  );
+
+  const allData = chunks.flat();
+
+  const mapped = allData.map(r => ({
     kodeToko: r.kode_toko,
     namaToko: r.nama_toko,
     namaCabang: r.nama_cabang,
@@ -419,6 +477,11 @@ export async function getSOHDataByRegion(region: 'jkt' | 'sby'): Promise<SOHReco
     avgSalesM1: Number(r.avg_sales_m1),
     sales: Number(r.sales),
   }));
+
+  if (region === 'jkt') sohJktCache = mapped;
+  else sohSbyCache = mapped;
+
+  return mapped;
 }
 
 /** @deprecated Use saveSOHDataByRegion instead */
@@ -447,9 +510,12 @@ export async function saveUploadedFiles(files: UploadedFile[]) {
     })));
 
   if (error) throw error;
+  invalidateCache();
 }
 
 export async function getUploadedFiles(): Promise<UploadedFile[]> {
+  if (uploadedFilesCache) return uploadedFilesCache;
+
   const { data, error } = await supabase
     .from('uploaded_files')
     .select('*')
@@ -457,13 +523,42 @@ export async function getUploadedFiles(): Promise<UploadedFile[]> {
 
   if (error) throw error;
 
-  return (data || []).map(f => ({
+  uploadedFilesCache = (data || []).map(f => ({
     id: f.id,
     name: f.name,
     type: f.type as any,
     uploadedAt: f.uploaded_at,
     recordCount: Number(f.record_count),
   }));
+
+  return uploadedFilesCache;
+}
+
+export async function getSalesCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from('sales')
+    .select('*', { count: 'exact', head: true });
+
+  if (error) throw error;
+  return count || 0;
+}
+
+export async function getSOHCountByRegion(region: 'jkt' | 'sby'): Promise<number> {
+  const { count, error } = await supabase
+    .from('soh')
+    .select('*', { count: 'exact', head: true })
+    .eq('region', region);
+
+  if (error) throw error;
+  return count || 0;
+}
+
+export async function getSOHCount(): Promise<number> {
+  const [jkt, sby] = await Promise.all([
+    getSOHCountByRegion('jkt'),
+    getSOHCountByRegion('sby'),
+  ]);
+  return jkt + sby;
 }
 
 export async function clearDataByType(type: 'sales' | 'soh-jkt' | 'soh-sby') {
@@ -480,6 +575,8 @@ export async function clearDataByType(type: 'sales' | 'soh-jkt' | 'soh-sby') {
   
   const { error: err4 } = await supabase.from('uploaded_files').delete().eq('type', type);
   if (err4) throw err4;
+
+  invalidateCache();
 }
 
 // Analytics helpers
@@ -585,8 +682,47 @@ export function getSkuSummaries(sales: SalesRecord[], soh?: SOHRecord[]): import
     }
   }
 
+  // Build a store info map and sales/soh lookups
+  const storeInfoMap = new Map<string, string>();
+  const salesLookup = new Map<string, number>(); // key: sku__store
+  const sohLookup = new Map<string, { 
+    soh: number; 
+    value: number; 
+    tag: string;
+    avgM3: number;
+    avgM2: number;
+    avgM1: number;
+  }>();
+
+  for (const s of sales) {
+    if (!storeInfoMap.has(s.kodeToko)) storeInfoMap.set(s.kodeToko, s.namaToko);
+    const key = `${s.kodeProduk}__${s.kodeToko}`;
+    salesLookup.set(key, (salesLookup.get(key) || 0) + s.qty);
+  }
+
+  if (soh) {
+    for (const s of soh) {
+      if (!storeInfoMap.has(s.kodeToko)) storeInfoMap.set(s.kodeToko, s.namaToko);
+      const key = `${s.kodeProduk}__${s.kodeToko}`;
+      sohLookup.set(key, { 
+        soh: s.soh, 
+        value: s.valueStock, 
+        tag: s.tagProduk,
+        avgM3: s.avgSalesM3,
+        avgM2: s.avgSalesM2,
+        avgM1: s.avgSalesM1
+      });
+    }
+  }
+
+  const allStoreCodes = Array.from(storeInfoMap.keys());
+
   for (const s of sales) {
     if (!map.has(s.kodeProduk)) {
+      // Find tag from any store for this SKU
+      const sampleSohKey = Array.from(sohLookup.keys()).find(k => k.startsWith(`${s.kodeProduk}__`));
+      const tag = sampleSohKey ? sohLookup.get(sampleSohKey)?.tag : '';
+
       map.set(s.kodeProduk, {
         kodeProduk: s.kodeProduk,
         namaPanjang: s.namaPanjang,
@@ -598,7 +734,10 @@ export function getSkuSummaries(sales: SalesRecord[], soh?: SOHRecord[]): import
         avgDailySales: 0,
         avgMonthlySales: 0,
         storeCount: 0,
+        tagProduk: tag || '',
+        storeDetails: [],
         movingClass: 'dead',
+        totalSoh: 0,
         stores: new Set(),
       });
     }
@@ -609,15 +748,39 @@ export function getSkuSummaries(sales: SalesRecord[], soh?: SOHRecord[]): import
   }
 
   return Array.from(map.values()).map(e => {
+    // Generate store-level details for ALL stores
+    const storeDetails = allStoreCodes.map(kodeToko => {
+      const key = `${e.kodeProduk}__${kodeToko}`;
+      const sDetail = sohLookup.get(key);
+      const storeAvgMonthly = sDetail 
+        ? (sDetail.avgM3 + sDetail.avgM2 + sDetail.avgM1) / 3 
+        : (salesLookup.get(key) || 0) / periodDays * 30;
+
+      let storeMoving: 'very_fast' | 'fast' | 'medium' | 'slow' | 'dead' = 'dead';
+      if (storeAvgMonthly >= 10) storeMoving = 'very_fast';
+      else if (storeAvgMonthly >= 4) storeMoving = 'fast';
+      else if (storeAvgMonthly >= 1) storeMoving = 'medium';
+      else if (storeAvgMonthly > 0) storeMoving = 'slow';
+
+      return {
+        kodeToko,
+        namaToko: storeInfoMap.get(kodeToko) || '',
+        soh: sDetail?.soh || 0,
+        salesQty: salesLookup.get(key) || 0,
+        stockValue: sDetail?.value || 0,
+        movingClass: storeMoving,
+      };
+    });
+
     const sohEntry = sohMap.get(e.kodeProduk);
     const avgMonthly = sohEntry
       ? Math.round(((sohEntry.totalM3 + sohEntry.totalM2 + sohEntry.totalM1) / 3) * 100) / 100
       : Math.round((e.totalQtySold / periodDays * 30) * 100) / 100;
 
-    // Classification based on monthly avg movement
-    let movingClass: 'fast' | 'medium' | 'slow' | 'dead' = 'dead';
-    if (avgMonthly >= 30) movingClass = 'fast';
-    else if (avgMonthly >= 10) movingClass = 'medium';
+    let movingClass: 'very_fast' | 'fast' | 'medium' | 'slow' | 'dead' = 'dead';
+    if (avgMonthly >= 10) movingClass = 'very_fast';
+    else if (avgMonthly >= 4) movingClass = 'fast';
+    else if (avgMonthly >= 1) movingClass = 'medium';
     else if (avgMonthly > 0) movingClass = 'slow';
 
     return {
@@ -625,6 +788,7 @@ export function getSkuSummaries(sales: SalesRecord[], soh?: SOHRecord[]): import
       avgDailySales: Math.round((e.totalQtySold / periodDays) * 100) / 100,
       avgMonthlySales: avgMonthly,
       storeCount: e.stores.size,
+      storeDetails,
       movingClass,
     };
   }).sort((a, b) => b.totalRevenue - a.totalRevenue);
