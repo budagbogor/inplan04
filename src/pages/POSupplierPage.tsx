@@ -4,7 +4,7 @@ import {
   FileText, Search, Printer, Save, Plus, Minus, Trash2,
   ChevronDown, ChevronRight, Package, AlertTriangle, Check, Download
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/PageHeader';
@@ -226,7 +226,7 @@ export default function POSupplierPage() {
     toast.success('PO berhasil disimpan');
   };
 
-  const handleExportExcel = (supplierFilter?: string) => {
+  const handleExportExcel = async (supplierFilter?: string) => {
     const groupsToExport = supplierFilter
       ? supplierGroups.filter(g => g.supplier === supplierFilter)
       : supplierGroups;
@@ -236,52 +236,61 @@ export default function POSupplierPage() {
       return;
     }
 
-    const wb = XLSX.utils.book_new();
+    const workbook = new ExcelJS.Workbook();
 
     for (const group of groupsToExport) {
-      const data = group.items.map((item, index) => ({
-        'No': index + 1,
-        'Kode Produk': item.kodeProduk,
-        'Nama Produk': item.namaPanjang,
-        'Brand': item.brand,
-        'Kategori': item.category,
-        'MOQ': item.moq,
-        'Order Qty': item.adjustedQty,
-      }));
-
-      data.push({
-        'No': '' as any,
-        'Kode Produk': '',
-        'Nama Produk': 'TOTAL ORDER',
-        'Brand': '',
-        'Kategori': '',
-        'MOQ': '' as any,
-        'Order Qty': group.totalQty,
-      });
-
-      const ws = XLSX.utils.json_to_sheet(data);
-
-      // Set column widths
-      ws['!cols'] = [
-        { wch: 5 },   // No
-        { wch: 15 },  // Kode Produk
-        { wch: 45 },  // Nama Produk
-        { wch: 15 },  // Brand
-        { wch: 15 },  // Kategori
-        { wch: 8 },   // MOQ
-        { wch: 12 },  // Order Qty
-      ];
-
       // Sheet names are limited to 31 chars
       const sheetName = group.supplier.substring(0, 31).replace(/[\\/?*\[\]]/g, ' ');
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      const worksheet = workbook.addWorksheet(sheetName);
+
+      worksheet.columns = [
+        { header: 'No', key: 'no', width: 5 },
+        { header: 'Kode Produk', key: 'kodeProduk', width: 15 },
+        { header: 'Nama Produk', key: 'namaPanjang', width: 45 },
+        { header: 'Brand', key: 'brand', width: 15 },
+        { header: 'Kategori', key: 'category', width: 15 },
+        { header: 'MOQ', key: 'moq', width: 8 },
+        { header: 'Order Qty', key: 'adjustedQty', width: 12 },
+      ];
+
+      group.items.forEach((item, index) => {
+        worksheet.addRow({
+          no: index + 1,
+          kodeProduk: item.kodeProduk,
+          namaPanjang: item.namaPanjang,
+          brand: item.brand,
+          category: item.category,
+          moq: item.moq,
+          adjustedQty: item.adjustedQty,
+        });
+      });
+
+      // Add total row
+      const totalRow = worksheet.addRow({
+        no: '',
+        kodeProduk: '',
+        namaPanjang: 'TOTAL ORDER',
+        brand: '',
+        category: '',
+        moq: '',
+        adjustedQty: group.totalQty,
+      });
+      totalRow.font = { bold: true };
     }
 
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    
     const fileName = supplierFilter 
       ? `PO_${supplierFilter}_${poNumber}.xlsx` 
       : `${poNumber}_All_Suppliers.xlsx`;
       
-    XLSX.writeFile(wb, fileName);
+    anchor.download = fileName;
+    anchor.click();
+    window.URL.revokeObjectURL(url);
     toast.success(`Berhasil mengekspor data ke format Excel`);
   };
 

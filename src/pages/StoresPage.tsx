@@ -10,7 +10,7 @@ import { getSOHData, formatNumber } from '@/lib/dataStore';
 import { getOrderSettings, filterByActiveStores } from '@/lib/orderSettings';
 import { calculateStoreOrders } from '@/lib/storeOrders';
 import type { SOHRecord, StoreOrderSummary, StoreOrderItem } from '@/lib/types';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 const priorityConfig = {
   critical: { label: 'Kritis', className: 'bg-destructive/10 text-destructive border-destructive/30' },
@@ -45,22 +45,56 @@ export default function StoresPage() {
   const totalCritical = stores.reduce((s, st) => s + st.criticalCount, 0);
   const totalSkuToOrder = stores.reduce((s, st) => s + st.totalSkuToOrder, 0);
 
-  const exportAll = () => {
-    const rows = stores.flatMap(st =>
+  const exportAll = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Store Orders');
+
+    worksheet.columns = [
+      { header: 'Kode Toko', key: 'kodeToko', width: 12 },
+      { header: 'Nama Toko', key: 'namaToko', width: 25 },
+      { header: 'Kode Produk', key: 'kodeProduk', width: 15 },
+      { header: 'Nama Produk', key: 'namaPanjang', width: 30 },
+      { header: 'Brand', key: 'brand', width: 15 },
+      { header: 'Supplier', key: 'supplier', width: 15 },
+      { header: 'SOH', key: 'soh', width: 10 },
+      { header: 'Avg Daily', key: 'avgDailyDemand', width: 10 },
+      { header: 'Lead Time', key: 'leadTimeDays', width: 10 },
+      { header: 'Safety Stock', key: 'safetyStock', width: 12 },
+      { header: 'ROP', key: 'rop', width: 12 },
+      { header: 'Order Up To', key: 'maxStock', width: 12 },
+      { header: 'Suggest Qty', key: 'suggestedQty', width: 12 },
+      { header: 'MOQ', key: 'moq', width: 10 },
+      { header: 'Prioritas', key: 'priority', width: 12 },
+    ];
+
+    stores.flatMap(st =>
       st.items.map(i => ({
-        'Kode Toko': st.kodeToko, 'Nama Toko': st.namaToko,
-        'Kode Produk': i.kodeProduk, 'Nama Produk': i.namaPanjang,
-        'Brand': i.brand, 'Supplier': i.supplier, 'SOH': i.soh,
-        'Avg Daily': i.avgDailyDemand, 'Lead Time': i.leadTimeDays,
-        'Safety Stock': i.safetyStock, 'ROP': i.rop,
-        'Order Up To': i.maxStock, 'Suggest Qty': i.suggestedQty,
-        'MOQ': i.moq, 'Prioritas': priorityConfig[i.priority].label,
+        kodeToko: st.kodeToko,
+        namaToko: st.namaToko,
+        kodeProduk: i.kodeProduk,
+        namaPanjang: i.namaPanjang,
+        brand: i.brand,
+        supplier: i.supplier,
+        soh: i.soh,
+        avgDailyDemand: i.avgDailyDemand,
+        leadTimeDays: i.leadTimeDays,
+        safetyStock: i.safetyStock,
+        rop: i.rop,
+        maxStock: i.maxStock,
+        suggestedQty: i.suggestedQty,
+        moq: i.moq,
+        priority: priorityConfig[i.priority].label,
       }))
-    );
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Store Orders');
-    XLSX.writeFile(wb, `Store_Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    ).forEach(row => worksheet.addRow(row));
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `Store_Orders_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    anchor.click();
+    window.URL.revokeObjectURL(url);
   };
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground text-sm">Memuat data...</div>;

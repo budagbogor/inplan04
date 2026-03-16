@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { parse, format, isValid } from 'date-fns';
 import { openDB, type IDBPDatabase } from 'idb';
 import type { SalesRecord, SOHRecord, UploadedFile } from './types';
@@ -102,7 +102,7 @@ function findColumnIndex(headers: string[], possibleNames: string[]): number {
   return -1;
 }
 
-function detectHeaderRowIndex<T extends string>(rows: unknown[][], aliasMap: HeaderAliasMap<T>): number {
+function detectHeaderRowIndex(rows: unknown[][], aliasMap: HeaderAliasMap<string>): number {
   const aliasGroups = Object.values(aliasMap) as string[][];
   const scanLimit = Math.min(rows.length, 40);
   const minimumMatches = Math.max(6, Math.ceil(aliasGroups.length * 0.45));
@@ -124,15 +124,12 @@ function detectHeaderRowIndex<T extends string>(rows: unknown[][], aliasMap: Hea
       if (findColumnIndex(headers, aliases) !== -1) score++;
     }
 
-    console.log(`[Header Scan] Row ${i}: matched ${score}/${aliasGroups.length} columns, headers:`, nonEmptyHeaders.slice(0, 8));
-
     if (score > bestScore) {
       bestScore = score;
       bestIndex = i;
     }
   }
 
-  console.log(`[Header Scan] Best row: ${bestIndex} with score ${bestScore}/${aliasGroups.length} (min: ${minimumMatches})`);
   return bestScore >= minimumMatches ? bestIndex : -1;
 }
 
@@ -146,12 +143,17 @@ function getColumnIndexes<T extends string>(headers: string[], aliasMap: HeaderA
   return indexes;
 }
 
-function getSheetRows(sheet: XLSX.WorkSheet): unknown[][] {
-  return XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    defval: '',
-    raw: true,
+function getSheetRows(sheet: ExcelJS.Worksheet): unknown[][] {
+  const rows: unknown[][] = [];
+  sheet.eachRow({ includeEmpty: true }, (row) => {
+    // exceljs rows are 1-indexed. row.values starts with empty at 0 if we don't handle it
+    const rowValues = (row.values as unknown[]);
+    // If it's an array, first element is empty due to 1-indexing
+    if (Array.isArray(rowValues)) {
+      rows.push(rowValues.slice(1));
+    }
   });
+  return rows;
 }
 
 function isNonEmptyRow(row: unknown[]): boolean {
@@ -206,109 +208,93 @@ export function normalizeProductCode(value: unknown): string {
 }
 
 // Parse sales Excel
-export function parseSalesExcel(file: File): Promise<SalesRecord[]> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = getSheetRows(sheet);
-        const headerRowIndex = detectHeaderRowIndex(rows, SALES_COLUMN_ALIASES);
+export async function parseSalesExcel(file: File): Promise<SalesRecord[]> {
+  const workbook = new ExcelJS.Workbook();
+  const data = await file.arrayBuffer();
+  await workbook.xlsx.load(data);
+  const sheet = workbook.worksheets[0];
+  if (!sheet) throw new Error('File Excel tidak memiliki worksheet.');
 
-        if (headerRowIndex === -1) {
-          throw new Error('Header kolom Sales tidak dikenali.');
-        }
+  const rows = getSheetRows(sheet);
+  const headerRowIndex = detectHeaderRowIndex(rows, SALES_COLUMN_ALIASES);
 
-        const normalizedHeaders = rows[headerRowIndex].map((cell) => normalizeColumnName(String(cell ?? '')));
-        const indexes = getColumnIndexes(normalizedHeaders, SALES_COLUMN_ALIASES);
-        const dataRows = rows.slice(headerRowIndex + 1).filter(isNonEmptyRow);
+  if (headerRowIndex === -1) {
+    throw new Error('Header kolom Sales tidak dikenali.');
+  }
 
-        const records: SalesRecord[] = dataRows
-          .map((row) => ({
-            tanggal: parseDateValue(getCell(row, indexes.tanggal)),
-            namaCabang: String(getCell(row, indexes.namaCabang) || '').trim(),
-            kodeToko: normalizeProductCode(getCell(row, indexes.kodeToko)),
-            namaToko: String(getCell(row, indexes.namaToko) || '').trim(),
-            nomorTransaksi: String(getCell(row, indexes.nomorTransaksi) || '').trim(),
-            brand: String(getCell(row, indexes.brand) || '').trim(),
-            jenis: String(getCell(row, indexes.jenis) || '').trim(),
-            departement: String(getCell(row, indexes.departement) || '').trim(),
-            category: String(getCell(row, indexes.category) || '').trim(),
-            skuLama: String(getCell(row, indexes.skuLama) || '').trim(),
-            kodeProduk: normalizeProductCode(getCell(row, indexes.kodeProduk)),
-            namaPanjang: String(getCell(row, indexes.namaPanjang) || '').trim(),
-            qty: parseNum(getCell(row, indexes.qty)),
-            hpp: parseNum(getCell(row, indexes.hpp)),
-            hargaJualNormal: parseNum(getCell(row, indexes.hargaJualNormal)),
-            disc: parseNum(getCell(row, indexes.disc)),
-            subtotal: parseNum(getCell(row, indexes.subtotal)),
-          }))
-          .filter((record) => record.kodeProduk && record.qty > 0);
+  const normalizedHeaders = rows[headerRowIndex].map((cell) => normalizeColumnName(String(cell ?? '')));
+  const indexes = getColumnIndexes(normalizedHeaders, SALES_COLUMN_ALIASES);
+  const dataRows = rows.slice(headerRowIndex + 1).filter(isNonEmptyRow);
 
-        resolve(records);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
-  });
+  const records: SalesRecord[] = dataRows
+    .map((row) => ({
+      tanggal: parseDateValue(getCell(row, indexes.tanggal)),
+      namaCabang: String(getCell(row, indexes.namaCabang) || '').trim(),
+      kodeToko: normalizeProductCode(getCell(row, indexes.kodeToko)),
+      namaToko: String(getCell(row, indexes.namaToko) || '').trim(),
+      nomorTransaksi: String(getCell(row, indexes.nomorTransaksi) || '').trim(),
+      brand: String(getCell(row, indexes.brand) || '').trim(),
+      jenis: String(getCell(row, indexes.jenis) || '').trim(),
+      departement: String(getCell(row, indexes.departement) || '').trim(),
+      category: String(getCell(row, indexes.category) || '').trim(),
+      skuLama: String(getCell(row, indexes.skuLama) || '').trim(),
+      kodeProduk: normalizeProductCode(getCell(row, indexes.kodeProduk)),
+      namaPanjang: String(getCell(row, indexes.namaPanjang) || '').trim(),
+      qty: parseNum(getCell(row, indexes.qty)),
+      hpp: parseNum(getCell(row, indexes.hpp)),
+      hargaJualNormal: parseNum(getCell(row, indexes.hargaJualNormal)),
+      disc: parseNum(getCell(row, indexes.disc)),
+      subtotal: parseNum(getCell(row, indexes.subtotal)),
+    }))
+    .filter((record) => record.kodeProduk && record.qty > 0);
+
+  return records;
 }
 
 // Parse SOH Excel - robust header matching
-export function parseSOHExcel(file: File): Promise<SOHRecord[]> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = getSheetRows(sheet);
-        const headerRowIndex = detectHeaderRowIndex(rows, SOH_COLUMN_ALIASES);
+export async function parseSOHExcel(file: File): Promise<SOHRecord[]> {
+  const workbook = new ExcelJS.Workbook();
+  const data = await file.arrayBuffer();
+  await workbook.xlsx.load(data);
+  const sheet = workbook.worksheets[0];
+  if (!sheet) throw new Error('File Excel tidak memiliki worksheet.');
 
-        if (headerRowIndex === -1) {
-          throw new Error('Header kolom SOH tidak dikenali.');
-        }
+  const rows = getSheetRows(sheet);
+  const headerRowIndex = detectHeaderRowIndex(rows, SOH_COLUMN_ALIASES);
 
-        const normalizedHeaders = rows[headerRowIndex].map((cell) => normalizeColumnName(String(cell ?? '')));
-        const indexes = getColumnIndexes(normalizedHeaders, SOH_COLUMN_ALIASES);
-        const dataRows = rows.slice(headerRowIndex + 1).filter(isNonEmptyRow);
+  if (headerRowIndex === -1) {
+    throw new Error('Header kolom SOH tidak dikenali.');
+  }
 
-        const records: SOHRecord[] = dataRows
-          .map((row) => ({
-            kodeToko: normalizeProductCode(getCell(row, indexes.kodeToko)),
-            namaToko: String(getCell(row, indexes.namaToko) || '').trim(),
-            namaCabang: String(getCell(row, indexes.namaCabang) || '').trim(),
-            kodeProduk: normalizeProductCode(getCell(row, indexes.kodeProduk)),
-            namaPanjang: String(getCell(row, indexes.namaPanjang) || '').trim(),
-            brand: String(getCell(row, indexes.brand) || '').trim(),
-            category: String(getCell(row, indexes.category) || '').trim(),
-            tagProduk: String(getCell(row, indexes.tagProduk) || '').trim(),
-            supplier: String(getCell(row, indexes.supplier) || '').trim(),
-            soh: parseNum(getCell(row, indexes.soh)),
-            valueStock: parseNum(getCell(row, indexes.valueStock)),
-            avgDailySales: parseNum(getCell(row, indexes.avgDailySales)),
-            dsi: parseNum(getCell(row, indexes.dsi)),
-            minStock: parseNum(getCell(row, indexes.minStock)),
-            maxStock: parseNum(getCell(row, indexes.maxStock)),
-            avgSalesM3: parseNum(getCell(row, indexes.avgSalesM3)),
-            avgSalesM2: parseNum(getCell(row, indexes.avgSalesM2)),
-            avgSalesM1: parseNum(getCell(row, indexes.avgSalesM1)),
-            sales: parseNum(getCell(row, indexes.sales)),
-          }))
-          .filter((record) => record.kodeProduk);
+  const normalizedHeaders = rows[headerRowIndex].map((cell) => normalizeColumnName(String(cell ?? '')));
+  const indexes = getColumnIndexes(normalizedHeaders, SOH_COLUMN_ALIASES);
+  const dataRows = rows.slice(headerRowIndex + 1).filter(isNonEmptyRow);
 
-        resolve(records);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
-  });
+  const records: SOHRecord[] = dataRows
+    .map((row) => ({
+      kodeToko: normalizeProductCode(getCell(row, indexes.kodeToko)),
+      namaToko: String(getCell(row, indexes.namaToko) || '').trim(),
+      namaCabang: String(getCell(row, indexes.namaCabang) || '').trim(),
+      kodeProduk: normalizeProductCode(getCell(row, indexes.kodeProduk)),
+      namaPanjang: String(getCell(row, indexes.namaPanjang) || '').trim(),
+      brand: String(getCell(row, indexes.brand) || '').trim(),
+      category: String(getCell(row, indexes.category) || '').trim(),
+      tagProduk: String(getCell(row, indexes.tagProduk) || '').trim(),
+      supplier: String(getCell(row, indexes.supplier) || '').trim(),
+      soh: parseNum(getCell(row, indexes.soh)),
+      valueStock: parseNum(getCell(row, indexes.valueStock)),
+      avgDailySales: parseNum(getCell(row, indexes.avgDailySales)),
+      dsi: parseNum(getCell(row, indexes.dsi)),
+      minStock: parseNum(getCell(row, indexes.minStock)),
+      maxStock: parseNum(getCell(row, indexes.maxStock)),
+      avgSalesM3: parseNum(getCell(row, indexes.avgSalesM3)),
+      avgSalesM2: parseNum(getCell(row, indexes.avgSalesM2)),
+      avgSalesM1: parseNum(getCell(row, indexes.avgSalesM1)),
+      sales: parseNum(getCell(row, indexes.sales)),
+    }))
+    .filter((record) => record.kodeProduk);
+
+  return records;
 }
 
 function parseNum(val: unknown): number {

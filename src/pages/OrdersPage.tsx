@@ -9,7 +9,7 @@ import { getSOHData, formatNumber } from '@/lib/dataStore';
 import { getOrderSettings, filterByActiveStores } from '@/lib/orderSettings';
 import { calculateStoreOrders } from '@/lib/storeOrders';
 import type { SOHRecord } from '@/lib/types';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 const priorityConfig = {
   critical: { label: 'Kritis', className: 'bg-destructive/10 text-destructive border-destructive/30' },
@@ -148,18 +148,46 @@ export default function OrdersPage() {
   const criticalCount = allOrders.filter(o => o.priority === 'critical').length;
   const lowCount = allOrders.filter(o => o.priority === 'low').length;
 
-  const exportToExcel = () => {
-    const data = filtered.map(o => ({
-      'Kode Produk': o.kodeProduk, 'Nama Produk': o.namaPanjang,
-      'Brand': o.brand, 'Kategori': o.category, 'Supplier': o.supplier,
-      'Total Stok': o.totalStock, 'Avg/Hari': o.avgDailyDemand,
-      'MOQ': o.moq, 'Order Qty': o.suggestedQty,
-      'Prioritas': priorityConfig[o.priority].label,
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Suggested Orders');
-    XLSX.writeFile(wb, `Suggested_Orders_SKU_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const exportToExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Suggested Orders');
+
+    worksheet.columns = [
+      { header: 'Kode Produk', key: 'kodeProduk', width: 15 },
+      { header: 'Nama Produk', key: 'namaPanjang', width: 30 },
+      { header: 'Brand', key: 'brand', width: 15 },
+      { header: 'Kategori', key: 'category', width: 15 },
+      { header: 'Supplier', key: 'supplier', width: 15 },
+      { header: 'Total Stok', key: 'totalStock', width: 12 },
+      { header: 'Avg/Hari', key: 'avgDailyDemand', width: 12 },
+      { header: 'MOQ', key: 'moq', width: 10 },
+      { header: 'Order Qty', key: 'suggestedQty', width: 12 },
+      { header: 'Prioritas', key: 'priority', width: 12 },
+    ];
+
+    filtered.forEach(o => {
+      worksheet.addRow({
+        kodeProduk: o.kodeProduk,
+        namaPanjang: o.namaPanjang,
+        brand: o.brand,
+        category: o.category,
+        supplier: o.supplier,
+        totalStock: o.totalStock,
+        avgDailyDemand: o.avgDailyDemand,
+        moq: o.moq,
+        suggestedQty: o.suggestedQty,
+        priority: priorityConfig[o.priority].label,
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `Suggested_Orders_SKU_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    anchor.click();
+    window.URL.revokeObjectURL(url);
   };
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground text-sm">Memuat data...</div>;
