@@ -1,28 +1,7 @@
 import ExcelJS from 'exceljs';
 import { parse, format, isValid } from 'date-fns';
-import { openDB, type IDBPDatabase } from 'idb';
+import { supabase } from './supabase';
 import type { SalesRecord, SOHRecord, UploadedFile } from './types';
-
-const DB_NAME = 'mobeng_db';
-const DB_VERSION = 1;
-const SALES_STORE = 'sales';
-const SOH_STORE = 'soh';
-const FILES_STORE = 'files';
-
-let dbPromise: Promise<IDBPDatabase> | null = null;
-
-function getDB() {
-  if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains(SALES_STORE)) db.createObjectStore(SALES_STORE);
-        if (!db.objectStoreNames.contains(SOH_STORE)) db.createObjectStore(SOH_STORE);
-        if (!db.objectStoreNames.contains(FILES_STORE)) db.createObjectStore(FILES_STORE);
-      },
-    });
-  }
-  return dbPromise;
-}
 
 type HeaderAliasMap<T extends string> = Record<T, string[]>;
 
@@ -89,13 +68,13 @@ function findColumnIndex(headers: string[], possibleNames: string[]): number {
 
   // 2) Header starts with alias (e.g. "nama toko / dc")
   for (const name of normalizedNames) {
-    const idx = headers.findIndex((header) => header.startsWith(name));
+    const idx = headers.findIndex((header) => header?.startsWith(name));
     if (idx !== -1) return idx;
   }
 
   // 3) Header contains alias (one-way only to avoid false positives)
   for (const name of normalizedNames) {
-    const idx = headers.findIndex((header) => header.includes(name));
+    const idx = headers.findIndex((header) => header?.includes(name));
     if (idx !== -1) return idx;
   }
 
@@ -322,48 +301,129 @@ function parseNum(val: unknown): number {
   return isNaN(parsed) ? 0 : parsed;
 }
 
-// In-memory cache + IndexedDB persistence
-let salesCache: SalesRecord[] | null = null;
-let sohJktCache: SOHRecord[] | null = null;
-let sbySohCache: SOHRecord[] | null = null;
-let filesCache: UploadedFile[] | null = null;
+// -------------------------------------------------------------------------
+// Supabase Integration
+// -------------------------------------------------------------------------
 
 export async function saveSalesData(records: SalesRecord[]) {
-  salesCache = records;
-  const db = await getDB();
-  await db.put(SALES_STORE, records, 'data');
+  // Map camelCase to snake_case for Supabase
+  const { error } = await supabase
+    .from('sales')
+    .upsert(records.map(r => ({
+      tanggal: r.tanggal,
+      nama_cabang: r.namaCabang,
+      kode_toko: r.kodeToko,
+      nama_toko: r.namaToko,
+      nomor_transaksi: r.nomorTransaksi,
+      brand: r.brand,
+      jenis: r.jenis,
+      departement: r.departement,
+      category: r.category,
+      sku_lama: r.skuLama,
+      kode_produk: r.kodeProduk,
+      nama_panjang: r.namaPanjang,
+      qty: r.qty,
+      hpp: r.hpp,
+      harga_jual_normal: r.hargaJualNormal,
+      disc: r.disc,
+      subtotal: r.subtotal,
+    })));
+
+  if (error) throw error;
 }
 
 export async function getSalesData(): Promise<SalesRecord[]> {
-  if (salesCache) return salesCache;
-  const db = await getDB();
-  const data = await db.get(SALES_STORE, 'data');
-  salesCache = data || [];
-  return salesCache!;
+  const { data, error } = await supabase
+    .from('sales')
+    .select('*')
+    .order('tanggal', { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map(r => ({
+    tanggal: r.tanggal,
+    namaCabang: r.nama_cabang,
+    kodeToko: r.kode_toko,
+    namaToko: r.nama_toko,
+    nomorTransaksi: r.nomor_transaksi,
+    brand: r.brand,
+    jenis: r.jenis,
+    departement: r.departement,
+    category: r.category,
+    skuLama: r.sku_lama,
+    kodeProduk: r.kode_produk,
+    namaPanjang: r.nama_panjang,
+    qty: Number(r.qty),
+    hpp: Number(r.hpp),
+    hargaJualNormal: Number(r.harga_jual_normal),
+    disc: Number(r.disc),
+    subtotal: Number(r.subtotal),
+  }));
 }
 
 export async function saveSOHDataByRegion(records: SOHRecord[], region: 'jkt' | 'sby') {
-  const key = `data-${region}`;
-  if (region === 'jkt') sohJktCache = records;
-  else sbySohCache = records;
-  const db = await getDB();
-  await db.put(SOH_STORE, records, key);
+  const { error } = await supabase
+    .from('soh')
+    .upsert(records.map(r => ({
+      kode_toko: r.kodeToko,
+      nama_toko: r.namaToko,
+      nama_cabang: r.namaCabang,
+      kode_produk: r.kodeProduk,
+      nama_panjang: r.namaPanjang,
+      brand: r.brand,
+      category: r.category,
+      tag_produk: r.tagProduk,
+      supplier: r.supplier,
+      soh: r.soh,
+      value_stock: r.valueStock,
+      avg_daily_sales: r.avgDailySales,
+      dsi: r.dsi,
+      min_stock: r.minStock,
+      max_stock: r.maxStock,
+      avg_sales_m3: r.avgSalesM3,
+      avg_sales_m2: r.avgSalesM2,
+      avg_sales_m1: r.avgSalesM1,
+      sales: r.sales,
+      region,
+    })));
+
+  if (error) throw error;
+}
+
+export async function getSOHDataByRegion(region: 'jkt' | 'sby'): Promise<SOHRecord[]> {
+  const { data, error } = await supabase
+    .from('soh')
+    .select('*')
+    .eq('region', region);
+
+  if (error) throw error;
+
+  return (data || []).map(r => ({
+    kodeToko: r.kode_toko,
+    namaToko: r.nama_toko,
+    namaCabang: r.nama_cabang,
+    kodeProduk: r.kode_produk,
+    namaPanjang: r.nama_panjang,
+    brand: r.brand,
+    category: r.category,
+    tagProduk: r.tag_produk,
+    supplier: r.supplier,
+    soh: Number(r.soh),
+    valueStock: Number(r.value_stock),
+    avgDailySales: Number(r.avg_daily_sales),
+    dsi: Number(r.dsi),
+    minStock: Number(r.min_stock),
+    maxStock: Number(r.max_stock),
+    avgSalesM3: Number(r.avg_sales_m3),
+    avgSalesM2: Number(r.avg_sales_m2),
+    avgSalesM1: Number(r.avg_sales_m1),
+    sales: Number(r.sales),
+  }));
 }
 
 /** @deprecated Use saveSOHDataByRegion instead */
 export async function saveSOHData(records: SOHRecord[]) {
   await saveSOHDataByRegion(records, 'jkt');
-}
-
-export async function getSOHDataByRegion(region: 'jkt' | 'sby'): Promise<SOHRecord[]> {
-  const cache = region === 'jkt' ? sohJktCache : sbySohCache;
-  if (cache) return cache;
-  const db = await getDB();
-  const data = await db.get(SOH_STORE, `data-${region}`);
-  const result = data || [];
-  if (region === 'jkt') sohJktCache = result;
-  else sbySohCache = result;
-  return result;
 }
 
 /** Returns merged SOH data from both JKT and SBY */
@@ -376,36 +436,50 @@ export async function getSOHData(): Promise<SOHRecord[]> {
 }
 
 export async function saveUploadedFiles(files: UploadedFile[]) {
-  filesCache = files;
-  const db = await getDB();
-  await db.put(FILES_STORE, files, 'data');
+  const { error } = await supabase
+    .from('uploaded_files')
+    .upsert(files.map(f => ({
+      id: f.id,
+      name: f.name,
+      type: f.type,
+      uploaded_at: f.uploadedAt,
+      record_count: f.recordCount,
+    })));
+
+  if (error) throw error;
 }
 
 export async function getUploadedFiles(): Promise<UploadedFile[]> {
-  if (filesCache) return filesCache;
-  const db = await getDB();
-  const data = await db.get(FILES_STORE, 'data');
-  filesCache = data || [];
-  return filesCache!;
+  const { data, error } = await supabase
+    .from('uploaded_files')
+    .select('*')
+    .order('uploaded_at', { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map(f => ({
+    id: f.id,
+    name: f.name,
+    type: f.type as any,
+    uploadedAt: f.uploaded_at,
+    recordCount: Number(f.record_count),
+  }));
 }
 
 export async function clearDataByType(type: 'sales' | 'soh-jkt' | 'soh-sby') {
   if (type === 'sales') {
-    salesCache = [];
-    const db = await getDB();
-    await db.put(SALES_STORE, [], 'data');
+    const { error: err1 } = await supabase.from('sales').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    if (err1) throw err1;
   } else if (type === 'soh-jkt') {
-    sohJktCache = [];
-    const db = await getDB();
-    await db.put(SOH_STORE, [], 'data-jkt');
+    const { error: err2 } = await supabase.from('soh').delete().eq('region', 'jkt');
+    if (err2) throw err2;
   } else {
-    sbySohCache = [];
-    const db = await getDB();
-    await db.put(SOH_STORE, [], 'data-sby');
+    const { error: err3 } = await supabase.from('soh').delete().eq('region', 'sby');
+    if (err3) throw err3;
   }
   
-  const files = (await getUploadedFiles()).filter(f => f.type !== type);
-  await saveUploadedFiles(files);
+  const { error: err4 } = await supabase.from('uploaded_files').delete().eq('type', type);
+  if (err4) throw err4;
 }
 
 // Analytics helpers
