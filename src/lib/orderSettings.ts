@@ -1,4 +1,5 @@
 import type { OrderSettings } from './types';
+import { getSOHData } from './dataStore';
 
 const SETTINGS_KEY = 'mobeng_order_settings';
 
@@ -88,8 +89,6 @@ export function saveOrderSettings(settings: OrderSettings): void {
 }
 
 export async function syncSettingsWithData(): Promise<OrderSettings> {
-  // We dynamic import to avoid circular dependency if dataStore imports orderSettings
-  const { getSOHData } = await import('./dataStore');
   const soh = await getSOHData();
   const settings = getOrderSettings();
 
