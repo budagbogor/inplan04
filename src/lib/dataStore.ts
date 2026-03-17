@@ -5,17 +5,19 @@ import { SalesRecord, SOHRecord, SkuSummary, UploadedFile, HistoricalSnapshot } 
 
 type DataType = 'sales' | 'soh-jkt' | 'soh-sby';
 
-// In-memory cache
-let salesCache: SalesRecord[] | null = null;
-let sohJktCache: SOHRecord[] | null = null;
-let sohSbyCache: SOHRecord[] | null = null;
+// In-memory cache by period
+const salesCacheMap = new Map<string, SalesRecord[]>();
+const sohJktCacheMap = new Map<string, SOHRecord[]>();
+const sohSbyCacheMap = new Map<string, SOHRecord[]>();
 let uploadedFilesCache: UploadedFile[] | null = null;
+let historicalSnapshotsCache: HistoricalSnapshot[] | null = null;
 
 export function invalidateCache() {
-  salesCache = null;
-  sohJktCache = null;
-  sohSbyCache = null;
+  salesCacheMap.clear();
+  sohJktCacheMap.clear();
+  sohSbyCacheMap.clear();
   uploadedFilesCache = null;
+  historicalSnapshotsCache = null;
 }
 
 type HeaderAliasMap<T extends string> = Record<T, string[]>;
@@ -368,8 +370,10 @@ export async function getSalesData(period?: string): Promise<SalesRecord[]> {
 
   if (!targetPeriod) return [];
   
-  // Cache check (only for latest/current)
-  if (!period && salesCache) return salesCache;
+  // Cache check for specific period
+  if (salesCacheMap.has(targetPeriod)) {
+    return salesCacheMap.get(targetPeriod)!;
+  }
 
   // Fetch all records from Supabase sequentially until exhausted
   const pageSize = 1000;
@@ -417,7 +421,7 @@ export async function getSalesData(period?: string): Promise<SalesRecord[]> {
     period: String(r.period),
   }));
 
-  if (!period) salesCache = records;
+  salesCacheMap.set(targetPeriod, records);
   return records;
 }
 
@@ -468,8 +472,10 @@ export async function getSOHDataByRegion(region: 'jkt' | 'sby', period?: string)
 
   if (!targetPeriod) return [];
 
-  const cache = region === 'jkt' ? sohJktCache : sohSbyCache;
-  if (!period && cache) return cache;
+  const cacheMap = region === 'jkt' ? sohJktCacheMap : sohSbyCacheMap;
+  if (cacheMap.has(targetPeriod)) {
+    return cacheMap.get(targetPeriod)!;
+  }
 
   // Fetch all records from Supabase sequentially until exhausted
   const pageSize = 1000;
@@ -520,9 +526,10 @@ export async function getSOHDataByRegion(region: 'jkt' | 'sby', period?: string)
     region: String(r.region) as 'jkt' | 'sby',
   }));
 
-  if (!period) {
-    if (region === 'jkt') sohJktCache = mapped;
-    else sohSbyCache = mapped;
+  if (region === 'jkt') {
+    sohJktCacheMap.set(targetPeriod, mapped);
+  } else {
+    sohSbyCacheMap.set(targetPeriod, mapped);
   }
 
   return mapped;
