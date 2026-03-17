@@ -378,44 +378,42 @@ export async function getSalesData(period?: string): Promise<SalesRecord[]> {
   
   if (numChunks === 0) return [];
 
-  const chunks = await Promise.all(
-    Array.from({ length: numChunks }).map((_, i) => {
-      const from = i * pageSize;
-      const to = from + pageSize - 1;
-      return supabase
-        .from('sales')
-        .select('*')
-        .eq('period', targetPeriod)
-        .order('tanggal', { ascending: false })
-        .range(from, to)
-        .then(({ data, error }) => {
-          if (error) throw error;
-          return data || [];
-        });
-    })
-  );
-
-  const allData = chunks.flat();
+  const allData: Record<string, unknown>[] = [];
+  for (let i = 0; i < numChunks; i++) {
+    const from = i * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*')
+      .eq('period', targetPeriod)
+      .order('tanggal', { ascending: false })
+      .range(from, to);
+      
+    if (error) throw error;
+    if (data && data.length > 0) {
+      allData.push(...data);
+    }
+  }
 
   const records = allData.map(r => ({
-    tanggal: r.tanggal,
-    namaCabang: r.nama_cabang,
-    kodeToko: r.kode_toko,
-    namaToko: r.nama_toko,
-    nomorTransaksi: r.nomor_transaksi,
-    brand: r.brand,
-    jenis: r.jenis,
-    departement: r.departement,
-    category: r.category,
-    skuLama: r.sku_lama,
-    kodeProduk: r.kode_produk,
-    namaPanjang: r.nama_panjang,
+    tanggal: String(r.tanggal),
+    namaCabang: String(r.nama_cabang),
+    kodeToko: String(r.kode_toko),
+    namaToko: String(r.nama_toko),
+    nomorTransaksi: String(r.nomor_transaksi),
+    brand: String(r.brand),
+    jenis: String(r.jenis),
+    departement: String(r.departement),
+    category: String(r.category),
+    skuLama: String(r.sku_lama),
+    kodeProduk: String(r.kode_produk),
+    namaPanjang: String(r.nama_panjang),
     qty: Number(r.qty),
     hpp: Number(r.hpp),
     hargaJualNormal: Number(r.harga_jual_normal),
     disc: Number(r.disc),
     subtotal: Number(r.subtotal),
-    period: r.period,
+    period: String(r.period),
   }));
 
   if (!period) salesCache = records;
@@ -479,35 +477,33 @@ export async function getSOHDataByRegion(region: 'jkt' | 'sby', period?: string)
 
   if (numChunks === 0) return [];
 
-  const chunks = await Promise.all(
-    Array.from({ length: numChunks }).map((_, i) => {
-      const from = i * pageSize;
-      const to = from + pageSize - 1;
-      return supabase
-        .from('soh')
-        .select('*')
-        .eq('region', region)
-        .eq('period', targetPeriod)
-        .range(from, to)
-        .then(({ data, error }) => {
-          if (error) throw error;
-          return data || [];
-        });
-    })
-  );
-
-  const allData = chunks.flat();
+  const allData: Record<string, unknown>[] = [];
+  for (let i = 0; i < numChunks; i++) {
+    const from = i * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error } = await supabase
+      .from('soh')
+      .select('*')
+      .eq('region', region)
+      .eq('period', targetPeriod)
+      .range(from, to);
+      
+    if (error) throw error;
+    if (data && data.length > 0) {
+      allData.push(...data);
+    }
+  }
 
   const mapped = allData.map(r => ({
-    kodeToko: r.kode_toko,
-    namaToko: r.nama_toko,
-    namaCabang: r.nama_cabang,
-    kodeProduk: r.kode_produk,
-    namaPanjang: r.nama_panjang,
-    brand: r.brand,
-    category: r.category,
-    tagProduk: r.tag_produk,
-    supplier: r.supplier,
+    kodeToko: String(r.kode_toko),
+    namaToko: String(r.nama_toko),
+    namaCabang: String(r.nama_cabang),
+    kodeProduk: String(r.kode_produk),
+    namaPanjang: String(r.nama_panjang),
+    brand: String(r.brand),
+    category: String(r.category),
+    tagProduk: String(r.tag_produk),
+    supplier: String(r.supplier),
     soh: Number(r.soh),
     valueStock: Number(r.value_stock),
     avgDailySales: Number(r.avg_daily_sales),
@@ -518,8 +514,8 @@ export async function getSOHDataByRegion(region: 'jkt' | 'sby', period?: string)
     avgSalesM2: Number(r.avg_sales_m2),
     avgSalesM1: Number(r.avg_sales_m1),
     sales: Number(r.sales),
-    period: r.period,
-    region: r.region as 'jkt' | 'sby',
+    period: String(r.period),
+    region: String(r.region) as 'jkt' | 'sby',
   }));
 
   if (!period) {
