@@ -324,31 +324,34 @@ function parseNum(val: unknown): number {
 // -------------------------------------------------------------------------
 
 export async function saveSalesData(records: SalesRecord[], period: string) {
-  // Map camelCase to snake_case for Supabase
-  const { error } = await supabase
-    .from('sales')
-    .upsert(records.map(r => ({
-      tanggal: r.tanggal,
-      nama_cabang: r.namaCabang,
-      kode_toko: r.kodeToko,
-      nama_toko: r.namaToko,
-      nomor_transaksi: r.nomorTransaksi,
-      brand: r.brand,
-      jenis: r.jenis,
-      departement: r.departement,
-      category: r.category,
-      sku_lama: r.skuLama,
-      kode_produk: r.kodeProduk,
-      nama_panjang: r.namaPanjang,
-      qty: r.qty,
-      hpp: r.hpp,
-      harga_jual_normal: r.hargaJualNormal,
-      disc: r.disc,
-      subtotal: r.subtotal,
-      period,
-    })));
+  const CHUNK_SIZE = 1000;
+  const mappedRecords = records.map(r => ({
+    tanggal: r.tanggal,
+    nama_cabang: r.namaCabang,
+    kode_toko: r.kodeToko,
+    nama_toko: r.namaToko,
+    nomor_transaksi: r.nomorTransaksi,
+    brand: r.brand,
+    jenis: r.jenis,
+    departement: r.departement,
+    category: r.category,
+    sku_lama: r.skuLama,
+    kode_produk: r.kodeProduk,
+    nama_panjang: r.namaPanjang,
+    qty: r.qty,
+    hpp: r.hpp,
+    harga_jual_normal: r.hargaJualNormal,
+    disc: r.disc,
+    subtotal: r.subtotal,
+    period,
+  }));
 
-  if (error) throw error;
+  for (let i = 0; i < mappedRecords.length; i += CHUNK_SIZE) {
+    const chunk = mappedRecords.slice(i, i + CHUNK_SIZE);
+    const { error } = await supabase.from('sales').upsert(chunk);
+    if (error) throw error;
+  }
+
   invalidateCache();
 }
 
@@ -420,36 +423,37 @@ export async function getSalesData(period?: string): Promise<SalesRecord[]> {
 }
 
 export async function saveSOHDataByRegion(records: SOHRecord[], region: 'jkt' | 'sby', period: string) {
-  // Update records with region and period for internal consistency if needed
-  const normalizedRecords = records.map(r => ({ ...r, region, period }));
-  
-  const { error } = await supabase
-    .from('soh')
-    .upsert(normalizedRecords.map(r => ({
-      kode_toko: r.kodeToko,
-      nama_toko: r.namaToko,
-      nama_cabang: r.namaCabang,
-      kode_produk: r.kodeProduk,
-      nama_panjang: r.namaPanjang,
-      brand: r.brand,
-      category: r.category,
-      tag_produk: r.tagProduk,
-      supplier: r.supplier,
-      soh: r.soh,
-      value_stock: r.valueStock,
-      avg_daily_sales: r.avgDailySales,
-      dsi: r.dsi,
-      min_stock: r.minStock,
-      max_stock: r.maxStock,
-      avg_sales_m3: r.avgSalesM3,
-      avg_sales_m2: r.avgSalesM2,
-      avg_sales_m1: r.avgSalesM1,
-      sales: r.sales,
-      region,
-      period,
-    })));
+  const CHUNK_SIZE = 1000;
+  const mappedRecords = records.map(r => ({
+    kode_toko: r.kodeToko,
+    nama_toko: r.namaToko,
+    nama_cabang: r.namaCabang,
+    kode_produk: r.kodeProduk,
+    nama_panjang: r.namaPanjang,
+    brand: r.brand,
+    category: r.category,
+    tag_produk: r.tagProduk,
+    supplier: r.supplier,
+    soh: r.soh,
+    value_stock: r.valueStock,
+    avg_daily_sales: r.avgDailySales,
+    dsi: r.dsi,
+    min_stock: r.minStock,
+    max_stock: r.maxStock,
+    avg_sales_m3: r.avgSalesM3,
+    avg_sales_m2: r.avgSalesM2,
+    avg_sales_m1: r.avgSalesM1,
+    sales: r.sales,
+    region,
+    period,
+  }));
 
-  if (error) throw error;
+  for (let i = 0; i < mappedRecords.length; i += CHUNK_SIZE) {
+    const chunk = mappedRecords.slice(i, i + CHUNK_SIZE);
+    const { error } = await supabase.from('soh').upsert(chunk);
+    if (error) throw error;
+  }
+
   invalidateCache();
 }
 
