@@ -49,7 +49,7 @@ function AppShell() {
           <Outlet />
         </div>
         <footer className="relative z-10 border-t py-4 text-center text-xs text-muted-foreground">
-          Copyright © 2026 Mobeng Inventory Planner
+          Copyright @2026 Product & Service Development
         </footer>
       </main>
     </div>

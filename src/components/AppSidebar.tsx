@@ -190,8 +190,7 @@ export function AppSidebar() {
               </button>
             </div>
             <div className="mt-3 text-[10px] leading-snug text-sidebar-foreground/50">
-              <div>© 2026 Mobeng</div>
-              <div className="uppercase tracking-widest">Inventory Planner</div>
+              Copyright @2026 Product & Service Development
             </div>
           </div>
         </aside>
@@ -315,12 +314,10 @@ export function AppSidebar() {
             "text-[10px] leading-snug text-sidebar-foreground/50",
             collapsed ? "px-2 pb-2 text-center" : "px-3 pb-3"
           )}
-          title={collapsed ? "© 2026 Mobeng Inventory Planner" : undefined}
+          title={collapsed ? "Copyright @2026 Product & Service Development" : undefined}
         >
-          <div className={cn(collapsed && "hidden")}>© 2026 Mobeng</div>
-          <div className={cn("uppercase tracking-widest", collapsed ? "text-[9px]" : undefined)}>
-            {collapsed ? "© 2026" : "Inventory Planner"}
-          </div>
+          <div className={cn(collapsed && "hidden")}>Copyright @2026 Product & Service Development</div>
+          <div className={cn("uppercase tracking-widest", collapsed ? "text-[9px]" : undefined)}>{collapsed ? "@2026" : null}</div>
         </div>
       </div>
     </aside>
