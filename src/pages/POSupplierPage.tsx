@@ -240,7 +240,7 @@ export default function POSupplierPage() {
 
     for (const group of groupsToExport) {
       // Sheet names are limited to 31 chars
-      const sheetName = group.supplier.substring(0, 31).replace(/[\\/?*\[\]]/g, ' ');
+      const sheetName = group.supplier.substring(0, 31).replace(/[\\/?*[\]]/g, ' ');
       const worksheet = workbook.addWorksheet(sheetName);
 
       worksheet.columns = [

@@ -29,10 +29,10 @@ export default function HistoricalPage() {
   const [generating, setGenerating] = useState(false);
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
 
-  const months = [
+  const months = useMemo(() => [
     'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
     'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'
-  ];
+  ], []);
 
   const loadData = async () => {
     setLoading(true);
@@ -64,8 +64,8 @@ export default function HistoricalPage() {
       await saveHistoricalSnapshot(snapshot);
       toast.success(`Snapshot untuk ${period} berhasil dibuat`);
       loadData();
-    } catch (err: any) {
-      toast.error(err.message || 'Gagal membuat snapshot');
+    } catch (err: unknown) {
+      toast.error((err as Error).message || 'Gagal membuat snapshot');
     } finally {
       setGenerating(false);
     }
@@ -88,7 +88,7 @@ export default function HistoricalPage() {
         dead: s.movingCounts.dead,
       };
     });
-  }, [snapshots]);
+  }, [snapshots, months]);
 
   const latest = snapshots[snapshots.length - 1];
   const previous = snapshots[snapshots.length - 2];

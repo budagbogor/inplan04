@@ -332,7 +332,7 @@ function StatCard({ title, count, percent, value, valuePercent, icon: Icon, colo
   percent: number;
   value: number;
   valuePercent: number;
-  icon: any; 
+  icon: React.ElementType; 
   color: string;
   description: string;
   variant: string;

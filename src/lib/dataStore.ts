@@ -3,6 +3,8 @@ import { parse, format, isValid } from 'date-fns';
 import { supabase } from './supabase';
 import { SalesRecord, SOHRecord, SkuSummary, UploadedFile, HistoricalSnapshot } from './types';
 
+type DataType = 'sales' | 'soh-jkt' | 'soh-sby';
+
 // In-memory cache
 let salesCache: SalesRecord[] | null = null;
 let sohJktCache: SOHRecord[] | null = null;
@@ -65,7 +67,7 @@ function normalizeColumnName(name: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[_\-]+/g, ' ')
+    .replace(/[_\\-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -567,7 +569,7 @@ export async function getUploadedFiles(): Promise<UploadedFile[]> {
   uploadedFilesCache = (data || []).map(f => ({
     id: f.id,
     name: f.name,
-    type: f.type as any,
+    type: f.type as DataType,
     uploadedAt: f.uploaded_at,
     recordCount: Number(f.record_count),
     period: f.period,

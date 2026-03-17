@@ -103,7 +103,7 @@ export default function UploadPage() {
     setSohSbyCount(sby);
   }, [currentPeriod]);
 
-  const processFile = async (file: File, type: DataType) => {
+  const processFile = useCallback(async (file: File, type: DataType) => {
     const period = currentPeriod;
     if (type === 'sales') {
       const records = await parseSalesExcel(file);
@@ -141,7 +141,7 @@ export default function UploadPage() {
       setFiles(updated);
       toast.success(`${records.length} data stok ${region === 'jkt' ? 'Jakarta' : 'Surabaya'} berhasil diupload untuk periode ${period}`);
     }
-  };
+  }, [currentPeriod]);
 
   const handleFilesSelected = useCallback((fileList: FileList) => {
     const validFiles: PendingFile[] = [];
@@ -173,7 +173,7 @@ export default function UploadPage() {
     setUploading(false);
     // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [pendingFiles, refreshCounts]);
+  }, [pendingFiles, refreshCounts, processFile]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -318,8 +318,9 @@ export default function UploadPage() {
                 </tr>
               ) : (
                 files.map((file) => {
-                  const [year, month] = file.period.split('-');
-                  const periodLabel = `${months[parseInt(month) - 1]} ${year}`;
+                  const safePeriod = file.period || '';
+                  const [year, month] = safePeriod.split('-');
+                  const periodLabel = year && month ? `${months[parseInt(month) - 1]} ${year}` : 'Tidak Ada Periode';
                   return (
                     <tr key={file.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3 font-medium">{periodLabel}</td>
