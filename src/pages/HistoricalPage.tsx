@@ -17,6 +17,7 @@ import {
   generateMonthlySnapshot, 
   saveHistoricalSnapshot,
   getUploadedFiles,
+  getSOHData,
   formatCurrency,
   formatNumber
 } from '@/lib/dataStore';
@@ -30,6 +31,7 @@ export default function HistoricalPage() {
   const [generating, setGenerating] = useState(false);
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>('all');
+  const [storeNameMap, setStoreNameMap] = useState<Record<string, string>>({});
 
   const months = useMemo(() => [
     'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
@@ -49,6 +51,12 @@ export default function HistoricalPage() {
       
       const periods = Array.from(new Set(files.map(f => f.period))).sort();
       setAvailablePeriods(periods);
+
+      // Build store name mapping from SOH/Sales data for older snapshots
+      const soh = await getSOHData();
+      const mapping: Record<string, string> = {};
+      soh.forEach(s => { if (s.kodeToko && s.namaToko) mapping[s.kodeToko] = s.namaToko; });
+      setStoreNameMap(mapping);
     } catch (err) {
       console.error(err);
       toast.error('Gagal memuat data histori');
@@ -137,7 +145,9 @@ export default function HistoricalPage() {
             <SelectContent>
               <SelectItem value="all">Semua Toko</SelectItem>
               {availableStores.map(store => (
-                <SelectItem key={store} value={store}>{store}</SelectItem>
+                <SelectItem key={store} value={store}>
+                  {storeNameMap[store] || store}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
