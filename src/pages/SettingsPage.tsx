@@ -554,67 +554,6 @@ export default function SettingsPage() {
         )}
       </Section>
 
-      {/* ── Formula Perhitungan ── */}
-      <Section icon={BookOpen} title="Formula Perhitungan" description="Penjelasan setiap formula yang digunakan sistem untuk menghitung rekomendasi order">
-        <div className="space-y-4">
-          <FormulaItem
-            num="1"
-            title="Average Daily Demand (Rata-rata Permintaan Harian)"
-            formula="(Sales M3 + M2 + M1 + Sales) / 4 / 30"
-            description="Menghitung rata-rata penjualan harian suatu SKU berdasarkan data 4 bulan terakhir. Angka ini menjadi dasar utama seluruh perhitungan persediaan."
-          />
-          <FormulaItem
-            num="2"
-            title="Safety Stock (Stok Pengaman)"
-            formula="Avg Daily × √Lead Time × Demand Factor + Avg Daily × LT Factor"
-            description="Menjaga ketersediaan stok dari dua risiko: (1) Variabilitas demand — lonjakan permintaan; (2) Ketidakpastian lead time — keterlambatan pengiriman."
-          />
-          <FormulaItem
-            num="3"
-            title="Reorder Point / ROP (Titik Pemesanan Ulang)"
-            formula="(Avg Daily × Lead Time) + Safety Stock"
-            description="Level stok minimum di mana pesanan baru harus dilakukan. SOH < 50% ROP = Kritis, SOH < ROP = Rendah."
-          />
-          <FormulaItem
-            num="4"
-            title="Order Up To Level (Level Stok Maksimal Target)"
-            formula="Avg Daily × (Lead Time + Review Period) + Safety Stock"
-            description="Jumlah stok ideal setelah pesanan diterima, cukup untuk memenuhi permintaan sampai siklus pemesanan berikutnya."
-          />
-          <FormulaItem
-            num="5"
-            title="Suggested Order (Rekomendasi Jumlah Pesanan)"
-            formula="max(0, Order Up To − SOH), dibulatkan ke MOQ"
-            description="Berapa banyak unit yang perlu dipesan agar stok kembali ke level optimal. Dibulatkan ke atas sesuai kelipatan MOQ."
-          />
-
-          <div className="rounded-lg border border-info/30 bg-info/5 p-4 space-y-1.5">
-            <p className="text-sm font-semibold text-foreground">📊 Klasifikasi Prioritas</p>
-            <div className="text-xs text-muted-foreground leading-relaxed space-y-1">
-              <p><span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-destructive/10 text-destructive border-destructive/30 mr-1">Kritis</span> SOH = 0 atau SOH &lt; 50% dari ROP</p>
-              <p><span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-warning/10 text-warning border-warning/30 mr-1">Rendah</span> SOH di bawah ROP</p>
-              <p><span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-info/10 text-info border-info/30 mr-1">Normal</span> SOH di antara ROP dan Order Up To</p>
-              <p><span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-success/10 text-success border-success/30 mr-1">Overstock</span> SOH &gt; 150% dari Order Up To</p>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 space-y-1.5">
-            <p className="text-sm font-semibold text-foreground">📦 Klasifikasi ABC (Analisis Pareto)</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Mengelompokkan SKU di setiap toko berdasarkan kontribusi nilai persediaan (SOH × HPP) menggunakan prinsip Pareto.
-            </p>
-            <p className="text-xs font-mono text-accent bg-accent/5 rounded px-2 py-1 inline-block mt-1">Nilai HPP = SOH × Rata-rata HPP per unit</p>
-            <p className="text-xs text-muted-foreground leading-relaxed mt-1">
-              SKU diurutkan dari nilai HPP tertinggi ke terendah, lalu dihitung persentase kumulatif.
-            </p>
-            <div className="mt-2 text-xs text-muted-foreground leading-relaxed space-y-1">
-              <p><span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-destructive/10 text-destructive border-destructive/30 mr-1">A</span> Kumulatif ≤ 80% — ~20% SKU menguasai ~80% nilai</p>
-              <p><span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-warning/10 text-warning border-warning/30 mr-1">B</span> Kumulatif 80–95% — nilai sedang, monitoring berkala</p>
-              <p><span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-info/10 text-info border-info/30 mr-1">C</span> Kumulatif &gt; 95% — jumlah banyak, kontribusi kecil</p>
-            </div>
-          </div>
-        </div>
-      </Section>
     </div>
   );
 }
@@ -676,12 +615,3 @@ function FilterSection({
   );
 }
 
-function FormulaItem({ num, title, formula, description }: { num: string; title: string; formula: string; description: string }) {
-  return (
-    <div className="rounded-lg border bg-muted/20 p-3 sm:p-4 space-y-1.5">
-      <p className="text-xs sm:text-sm font-semibold text-foreground">{num}. {title}</p>
-      <p className="text-[10px] sm:text-xs font-mono text-accent bg-accent/5 rounded px-2 py-1 inline-block">{formula}</p>
-      <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">{description}</p>
-    </div>
-  );
-}

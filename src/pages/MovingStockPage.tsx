@@ -59,12 +59,55 @@ export default function MovingStockPage() {
   }, [skuSummaries, searchTerm]);
 
   const stats = useMemo(() => {
+    const total = skuSummaries.length;
+    const getPercent = (count: number) => total > 0 ? (count / total) * 100 : 0;
+
+    const data = {
+      very_fast: { count: 0, value: 0 },
+      fast: { count: 0, value: 0 },
+      medium: { count: 0, value: 0 },
+      slow: { count: 0, value: 0 },
+      dead: { count: 0, value: 0 },
+    };
+
+    skuSummaries.forEach(s => {
+      if (data[s.movingClass]) {
+        data[s.movingClass].count++;
+        // Sum total stock value across all stores for this SKU
+        const skuValue = s.storeDetails.reduce((acc, d) => acc + d.stockValue, 0);
+        data[s.movingClass].value += skuValue;
+      }
+    });
+
+    const totalValue = Object.values(data).reduce((acc, curr) => acc + curr.value, 0);
+
     return {
-      veryFast: skuSummaries.filter(s => s.movingClass === 'very_fast').length,
-      fast: skuSummaries.filter(s => s.movingClass === 'fast').length,
-      medium: skuSummaries.filter(s => s.movingClass === 'medium').length,
-      slow: skuSummaries.filter(s => s.movingClass === 'slow').length,
-      dead: skuSummaries.filter(s => s.movingClass === 'dead').length,
+      total,
+      totalValue,
+      veryFast: data.very_fast.count,
+      veryFastValue: data.very_fast.value,
+      fast: data.fast.count,
+      fastValue: data.fast.value,
+      medium: data.medium.count,
+      mediumValue: data.medium.value,
+      slow: data.slow.count,
+      slowValue: data.slow.value,
+      dead: data.dead.count,
+      deadValue: data.dead.value,
+      percents: {
+        veryFast: getPercent(data.very_fast.count),
+        fast: getPercent(data.fast.count),
+        medium: getPercent(data.medium.count),
+        slow: getPercent(data.slow.count),
+        dead: getPercent(data.dead.count),
+      },
+      valuePercents: {
+        veryFast: totalValue > 0 ? (data.very_fast.value / totalValue) * 100 : 0,
+        fast: totalValue > 0 ? (data.fast.value / totalValue) * 100 : 0,
+        medium: totalValue > 0 ? (data.medium.value / totalValue) * 100 : 0,
+        slow: totalValue > 0 ? (data.slow.value / totalValue) * 100 : 0,
+        dead: totalValue > 0 ? (data.dead.value / totalValue) * 100 : 0,
+      }
     };
   }, [skuSummaries]);
 
@@ -107,6 +150,9 @@ export default function MovingStockPage() {
         <StatCard 
           title="Very Fast" 
           count={stats.veryFast} 
+          percent={stats.percents.veryFast}
+          value={stats.veryFastValue}
+          valuePercent={stats.valuePercents.veryFast}
           icon={Zap} 
           color="bg-blue-500" 
           description="> 10 unit / bln"
@@ -115,6 +161,9 @@ export default function MovingStockPage() {
         <StatCard 
           title="Fast Moving" 
           count={stats.fast} 
+          percent={stats.percents.fast}
+          value={stats.fastValue}
+          valuePercent={stats.valuePercents.fast}
           icon={TrendingUp} 
           color="bg-green-500" 
           description="4 - 10 unit / bln"
@@ -123,6 +172,9 @@ export default function MovingStockPage() {
         <StatCard 
           title="Medium" 
           count={stats.medium} 
+          percent={stats.percents.medium}
+          value={stats.mediumValue}
+          valuePercent={stats.valuePercents.medium}
           icon={Minus} 
           color="bg-yellow-500" 
           description="1 - 4 unit / bln"
@@ -131,6 +183,9 @@ export default function MovingStockPage() {
         <StatCard 
           title="Slow Moving" 
           count={stats.slow} 
+          percent={stats.percents.slow}
+          value={stats.slowValue}
+          valuePercent={stats.valuePercents.slow}
           icon={AlertTriangle} 
           color="bg-orange-500" 
           description="0.1 - 1 unit / bln"
@@ -139,6 +194,9 @@ export default function MovingStockPage() {
         <StatCard 
           title="Dead Stock" 
           count={stats.dead} 
+          percent={stats.percents.dead}
+          value={stats.deadValue}
+          valuePercent={stats.valuePercents.dead}
           icon={Skull} 
           color="bg-red-500" 
           description="0 sales / bln"
@@ -252,9 +310,12 @@ export default function MovingStockPage() {
   );
 }
 
-function StatCard({ title, count, icon: Icon, color, description, variant }: { 
+function StatCard({ title, count, percent, value, valuePercent, icon: Icon, color, description, variant }: { 
   title: string; 
   count: number; 
+  percent: number;
+  value: number;
+  valuePercent: number;
   icon: any; 
   color: string;
   description: string;
@@ -294,12 +355,23 @@ function StatCard({ title, count, icon: Icon, color, description, variant }: {
         </div>
       </div>
       <div className="mt-4">
-        <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+          <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full bg-background/50 shadow-sm", iconColor)}>
+            {percent.toFixed(1)}%
+          </span>
+        </div>
         <div className="flex items-baseline gap-2 mt-1">
           <span className="text-2xl font-bold tracking-tight">{count.toLocaleString()}</span>
           <span className="text-xs font-medium text-muted-foreground">SKUs</span>
         </div>
-        <p className="text-[10px] uppercase tracking-wider font-semibold opacity-60 mt-2">{description}</p>
+        <div className="mt-2 space-y-0.5">
+          <p className="text-[10px] uppercase tracking-wider font-semibold opacity-60">{description}</p>
+          <p className={cn("text-xs font-bold font-mono", iconColor)}>
+            {formatCurrency(value)}
+            <span className="ml-1 opacity-70">({valuePercent.toFixed(1)}%)</span>
+          </p>
+        </div>
       </div>
     </motion.div>
   );

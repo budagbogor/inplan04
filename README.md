@@ -4,57 +4,55 @@ Sistem aplikasi web cerdas untuk memantau, merencanakan, dan mengklasifikasikan 
 
 ## ✨ Fitur Utama (Core Features)
 
-1. **Dashboard & Analitik Komprehensif**
-   Tinjau performa SKU (Service Level), identifikasi *Overstock / Kritis*, dan nilai total estimasi modal untuk pembelian barang (*Purchase Order*).
-   
-2. **Unggah Data Otomatis (Upload)**
-   Mendukung kemampuan baca (parsing) multi-file dokumen Excel yang memuat *Report Daily Nett Sales* dan data *Stok On Hand (SOH)* spesifik untuk cabang area seperti Jakarta dan Surabaya.
-   
-3. **Penyaringan Pintar (Smart Filtering)**
-   Mengecualikan kalkulasi secara otomatis/manual berdasarkan nama vendor tertentu, ID toko, brand produk, maupun klasifikasi divisi.
+1. **Unggah Data Otomatis (Upload)**
+   Langkah awal untuk memulai analisa. Mendukung parsing multi-file Excel untuk *Report Daily Nett Sales* dan *Stok On Hand (SOH)* cabang Jakarta dan Surabaya. Data tersimpan aman di cloud.
+
+2. **Dashboard & Analitik Komprehensif**
+   Tinjau performa SKU (Service Level), identifikasi *Overstock / Kritis*, serta nilai total estimasi modal pemesanan (*Purchase Order*).
+
+3. **Moving Stock & Clickable Details**
+   Visualisasi pergerakan stok harian. Setiap baris SKU dapat diklik untuk melihat rincian ketersediaan stok di setiap cabang toko secara mendalam.
 
 4. **Kalkulasi Klasifikasi ABC**
-   Melakukan algoritma Analisis Pareto (*ABC Analysis*) pada tiap sub-cabang/toko, otomatis mengurutkan barang berdasarkan kontribusi total nilai HPP-nya. (Kelas A, B, dan C)
+   Algoritma Analisis Pareto (*ABC Analysis*) otomatis untuk setiap cabang, mengelompokkan barang berdasarkan kontribusi nilai HPP (Kelas A, B, dan C).
 
-5. **Perhitungan Keperluan Stok (Suggest Order)**
-   Analisis dan pembentukan *Purchase Order* menggunakan formula *Safety Stock, Average Daily Demand,* hingga pembulatan angka berdasakran kapasitas *Minimum Order Quantity* (MOQ) tiap suplier. Mendukung ekspor data ke Excel.
+5. **Penyaringan Pintar (Smart Filtering)**
+   Kustomisasi filter berdasarkan vendor, ID toko, brand, hingga klasifikasi divisi melalui halaman Pengaturan.
 
-6. **Panduan Penggunaan Terpadu**
-   Memiliki sesi panduan visual dalam aplikasi untuk melancarkan proses *on-boarding* staf maupun kasir baru.
+6. **Suggest Order & Export PO**
+   Rekomendasi pemesanan otomatis menggunakan formula *Safety Stock* dan *Average Daily Demand* dengan pembulatan MOQ. Mendukung ekspor ke Excel.
 
-## 🚀 Instalasi & Menjalankan Aplikasi (Local Development)
+## 🚀 Instalasi & Menjalankan Aplikasi
 
-Proyek ini dibangun menggunakan **React + Vite** dibalut dengan Tailwind CSS dan komponen antarmuka dari **shadcn-ui**.
+Proyek ini menggunakan **React + Vite 8** dengan integrasi **Supabase** untuk persistensi data.
 
 Pastikan **Node.js** dan `npm` sudah terpasang.
 
 ```bash
-# 1. Clone repositori ini
-git clone https://github.com/budagbogor/inventoryplanner02.git
+# 1. Clone repositori
+git clone https://github.com/budagbogor/inventoryplanner03.git
 
-# 2. Masuk ke dalam folder project (main root target)
-cd inventoryplanner02/inventory-planner-main
-
-# 3. Install seluruh dependencies (Catatan: file lock yang valid hanyalah package-lock.json milih npm)
+# 2. Install dependencies
 npm install
 
-# 4. Jalankan local development server (dilengkapi Hot-Reload)
+# 3. Setup Environment Variables
+# Buat file .env.local dan isi dengan kredensial Supabase Anda:
+# VITE_SUPABASE_URL=your_url
+# VITE_SUPABASE_ANON_KEY=your_key
+
+# 4. Jalankan aplikasi
 npm run dev
-
-# 5. Build aplikasi untuk produksi (Production)
-npm run build
 ```
-
-Setelah `npm run dev` berjalan, buka URL lokal (umumnya `http://localhost:8080/` atau `http://localhost:5173/`) pada _browser_ web pilihan Anda.
 
 ## 🛠️ Stack Teknologi
 
-- **Framework**: [React](https://react.dev/) + [Vite](https://vitejs.dev/)
+- **Framework**: [React](https://react.dev/) + [Vite 8](https://vitejs.dev/)
+- **Database**: [Supabase](https://supabase.com/) (PostgreSQL + Realtime)
 - **Bahasa**: [TypeScript](https://www.typescriptlang.org/)
-- **Routing**: `react-router-dom`
-- **Tampilan (Styling)**: [Tailwind CSS](https://tailwindcss.com/) & [shadcn/ui](https://ui.shadcn.com/)
+- **Tampilan**: [Tailwind CSS](https://tailwindcss.com/) & [shadcn/ui](https://ui.shadcn.com/)
 - **Ikonografi**: [Lucide React](https://lucide.dev/)
-- **Lainnya**: `sonner` (untuk notifikasi toast), `recharts` (Analisis Grafik), dan `xlsx` (Pengolahan data file import/export)
+- **Animasi**: `framer-motion`
+- **Lainnya**: `sonner`, `recharts`, `xlsx` (Excel Processing)
 
 ---
 *Dikembangkan secara privat untuk keperluan manajemen Inventaris internal.*

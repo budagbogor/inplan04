@@ -22,10 +22,10 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import logoImg from '@/assets/logo.png';
 
 const navItems = [
+  { to: '/upload', label: 'Upload Data', icon: Upload },
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/analysis', label: 'Analisa', icon: Activity },
   { to: '/moving-stock', label: 'Moving Stock', icon: BarChart3 },
-  { to: '/upload', label: 'Upload Data', icon: Upload },
   { to: '/average-demand', label: 'Avg Demand', icon: TrendingUp },
   { to: '/inventory', label: 'Klasifikasi ABC', icon: Package },
   { to: '/stores', label: 'Suggest Order Per Toko', icon: Store },

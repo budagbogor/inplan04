@@ -2,9 +2,13 @@ import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Activity, AlertTriangle, TrendingDown, Package, BarChart3,
-  ChevronDown, ChevronUp, Search, Gauge, ShieldCheck, PackageX
+  ChevronDown, ChevronUp, Search, Gauge, ShieldCheck, PackageX,
+  LayoutGrid
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/PageHeader';
 import { StatCard } from '@/components/StatCard';
 import { getSOHData, getSalesData, getSkuSummaries, formatCurrency, formatNumber } from '@/lib/dataStore';
@@ -218,6 +222,7 @@ export default function AnalysisPage() {
   const [expandedStore, setExpandedStore] = useState<string | null>(null);
   const [skuSummaries, setSkuSummaries] = useState<SkuSummary[]>([]);
   const [selectedSku, setSelectedSku] = useState<SkuSummary | null>(null);
+  const [isWsExpanded, setIsWsExpanded] = useState(false);
 
   useEffect(() => {
     Promise.all([getSOHData(), getSalesData()]).then(([sohData, salesData]) => {
@@ -273,19 +278,6 @@ export default function AnalysisPage() {
         <StatCard title="Critical Order" value={formatNumber(health.criticalOrderItems)} subtitle={`${health.storeCount} toko`} icon={ShieldCheck} variant="destructive" />
       </div>
 
-      {/* ─── Stock Efficiency Formula ─── */}
-      <div className="bg-card rounded-xl border shadow-card p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Gauge className="w-4 h-4 text-accent" />
-          <h3 className="text-sm font-semibold text-foreground">Rumus Stock Efficiency</h3>
-        </div>
-        <div className="bg-muted/30 rounded-lg p-3 text-center">
-          <p className="text-xs text-muted-foreground mb-1">S/E = (Total Stock − (Overstock + Non Moving Stock)) / Total Stock × 100%</p>
-          <p className="text-lg font-bold font-mono">
-            S/E = ({formatNumber(health.totalQty)} − ({formatNumber(health.overstockQty)} + {formatNumber(health.nonMovingQty)})) / {formatNumber(health.totalQty)} × 100% = <span className={efficiencyColor(health.stockEfficiency)}>{health.stockEfficiency}%</span>
-          </p>
-        </div>
-      </div>
 
       {/* ─── Non-Moving by Tag ─── */}
       {health.tagBreakdown.length > 0 && (
@@ -323,44 +315,72 @@ export default function AnalysisPage() {
 
       {/* ─── W/S Tag SKU Analysis ─── */}
       {wsSkus.length > 0 && (
-        <div className="bg-card rounded-xl border shadow-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Package className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold text-foreground">Penjualan SKU Tag W/S</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/50">
-                  <th className="text-left px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">SKU / Nama Produk</th>
-                  <th className="text-center px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tag</th>
-                  <th className="text-right px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Toko Penjualan</th>
-                  <th className="text-right px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total Qty Sold</th>
-                  <th className="text-right px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {wsSkus.map((sku, i) => (
-                  <tr 
-                    key={sku.kodeProduk} 
-                    className={`border-t hover:bg-muted/20 cursor-pointer transition-colors ${i % 2 === 0 ? '' : 'bg-muted/10'}`}
-                    onClick={() => setSelectedSku(sku)}
-                  >
-                    <td className="px-3 py-2">
-                      <p className="font-semibold text-foreground text-xs">{sku.namaPanjang}</p>
-                      <p className="text-[10px] text-muted-foreground font-mono">{sku.kodeProduk}</p>
-                    </td>
-                    <td className="px-3 py-2 text-center text-xs font-bold text-primary">{sku.tagProduk}</td>
-                    <td className="px-3 py-2 text-right font-mono text-xs">{sku.storeCount} toko</td>
-                    <td className="px-3 py-2 text-right font-mono text-xs">{formatNumber(sku.totalQtySold)}</td>
-                    <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrency(sku.totalRevenue)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <Collapsible open={isWsExpanded} onOpenChange={setIsWsExpanded} className="bg-card rounded-xl border shadow-card overflow-hidden">
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between p-4 hover:bg-muted/30 transition-colors text-left">
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Penjualan SKU Tag W/S</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                  {wsSkus.length} SKU Tag W/S Terdeteksi
+                </span>
+                <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", isWsExpanded && "rotate-180")} />
+              </div>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="p-4 pt-0">
+              <div className="overflow-x-auto border rounded-xl overflow-hidden mt-2">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className="text-left px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">SKU / Nama Produk</th>
+                      <th className="text-center px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tag</th>
+                      <th className="text-right px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Toko Penjualan</th>
+                      <th className="text-right px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total Qty Sold</th>
+                      <th className="text-right px-3 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wsSkus.map((sku, i) => (
+                      <tr 
+                        key={sku.kodeProduk} 
+                        className={`border-t hover:bg-muted/20 cursor-pointer transition-colors ${i % 2 === 0 ? '' : 'bg-muted/10'}`}
+                        onClick={() => setSelectedSku(sku)}
+                      >
+                        <td className="px-3 py-2">
+                          <p className="font-semibold text-foreground text-xs">{sku.namaPanjang}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono">{sku.kodeProduk}</p>
+                        </td>
+                        <td className="px-3 py-2 text-center text-xs font-bold text-primary">{sku.tagProduk}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">{sku.storeCount} toko</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">{formatNumber(sku.totalQtySold)}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrency(sku.totalRevenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       )}
+
+      {/* ─── Stock Efficiency Formula ─── */}
+      <div className="bg-card rounded-xl border shadow-card p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Gauge className="w-4 h-4 text-accent" />
+          <h3 className="text-sm font-semibold text-foreground">Rumus Stock Efficiency</h3>
+        </div>
+        <div className="bg-muted/30 rounded-lg p-3 text-center">
+          <p className="text-xs text-muted-foreground mb-1">S/E = (Total Stock − (Overstock + Non Moving Stock)) / Total Stock × 100%</p>
+          <p className="text-lg font-bold font-mono">
+            S/E = ({formatNumber(health.totalQty)} − ({formatNumber(health.overstockQty)} + {formatNumber(health.nonMovingQty)})) / {formatNumber(health.totalQty)} × 100% = <span className={efficiencyColor(health.stockEfficiency)}>{health.stockEfficiency}%</span>
+          </p>
+        </div>
+      </div>
 
       {/* ─── Store List Dialog ─── */}
       <Dialog open={!!selectedSku} onOpenChange={(open) => !open && setSelectedSku(null)}>

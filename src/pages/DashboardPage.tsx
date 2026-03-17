@@ -53,8 +53,13 @@ export default function DashboardPage() {
       if (!tagMap.has(tag)) tagMap.set(tag, new Set());
       tagMap.get(tag)!.add(r.kodeProduk);
     }
+    const totalTagCount = Array.from(tagMap.values()).reduce((sum, set) => sum + set.size, 0);
     return Array.from(tagMap.entries())
-      .map(([tag, skus]) => ({ tag, count: skus.size }))
+      .map(([tag, skus]) => ({ 
+        tag, 
+        count: skus.size,
+        percentage: totalTagCount > 0 ? (skus.size / totalTagCount) * 100 : 0
+      }))
       .sort((a, b) => b.count - a.count);
   }, [soh, selectedStore]);
 
@@ -147,8 +152,11 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: Math.min(i * 0.03, 0.5) }}
-                className="rounded-lg border bg-muted/30 px-3 sm:px-4 py-2.5 sm:py-3 text-center"
+                className="relative rounded-lg border bg-muted/30 px-3 sm:px-4 py-2.5 sm:py-3 text-center overflow-hidden"
               >
+                <div className="absolute top-0 right-0 px-1.5 py-0.5 bg-accent/10 border-l border-b border-accent/20 rounded-bl-lg text-[9px] font-bold text-accent">
+                  {item.percentage.toFixed(1)}%
+                </div>
                 <p className="text-base sm:text-lg font-bold text-foreground">{formatNumber(item.count)} <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">SKU</span></p>
                 <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5 truncate font-medium" title={item.tag}>Tag {item.tag}</p>
               </motion.div>
