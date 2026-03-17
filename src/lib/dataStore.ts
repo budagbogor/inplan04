@@ -1,7 +1,18 @@
 import ExcelJS from 'exceljs';
 import { parse, format, isValid } from 'date-fns';
-import { supabase } from './supabase';
 import { SalesRecord, SOHRecord, SkuSummary, UploadedFile, HistoricalSnapshot } from './types';
+import { supabase } from './supabase';
+import {
+  idbDeleteSOH,
+  idbDeleteSales,
+  idbDeleteUploadedFile,
+  idbGetSales,
+  idbGetSOH,
+  idbGetUploadedFiles,
+  idbReplaceUploadedFiles,
+  idbSaveSOH,
+  idbSaveSales,
+} from './indexedDbStore';
 
 type DataType = 'sales' | 'soh-jkt' | 'soh-sby';
 
@@ -326,33 +337,8 @@ function parseNum(val: unknown): number {
 // -------------------------------------------------------------------------
 
 export async function saveSalesData(records: SalesRecord[], period: string) {
-  const CHUNK_SIZE = 1000;
-  const mappedRecords = records.map(r => ({
-    tanggal: r.tanggal,
-    nama_cabang: r.namaCabang,
-    kode_toko: r.kodeToko,
-    nama_toko: r.namaToko,
-    nomor_transaksi: r.nomorTransaksi,
-    brand: r.brand,
-    jenis: r.jenis,
-    departement: r.departement,
-    category: r.category,
-    sku_lama: r.skuLama,
-    kode_produk: r.kodeProduk,
-    nama_panjang: r.namaPanjang,
-    qty: r.qty,
-    hpp: r.hpp,
-    harga_jual_normal: r.hargaJualNormal,
-    disc: r.disc,
-    subtotal: r.subtotal,
-    period,
-  }));
-
-  for (let i = 0; i < mappedRecords.length; i += CHUNK_SIZE) {
-    const chunk = mappedRecords.slice(i, i + CHUNK_SIZE);
-    const { error } = await supabase.from('sales').upsert(chunk);
-    if (error) throw error;
-  }
+  const recordsWithPeriod = records.map(r => ({ ...r, period }));
+  await idbSaveSales(period, recordsWithPeriod);
 
   invalidateCache();
 }
@@ -375,87 +361,15 @@ export async function getSalesData(period?: string): Promise<SalesRecord[]> {
     return salesCacheMap.get(targetPeriod)!;
   }
 
-  // Fetch all records from Supabase sequentially until exhausted
-  const pageSize = 1000;
-  const allData: Record<string, unknown>[] = [];
-  let from = 0;
-
-  while (true) {
-    const to = from + pageSize - 1;
-    const { data, error } = await supabase
-      .from('sales')
-      .select('*')
-      .eq('period', targetPeriod)
-      .order('tanggal', { ascending: false })
-      .range(from, to);
-      
-    if (error) throw error;
-    
-    if (data && data.length > 0) {
-      allData.push(...data);
-      if (data.length < pageSize) break; // End of data
-      from += pageSize;
-    } else {
-      break;
-    }
-  }
-
-  const records = allData.map(r => ({
-    tanggal: String(r.tanggal),
-    namaCabang: String(r.nama_cabang),
-    kodeToko: String(r.kode_toko),
-    namaToko: String(r.nama_toko),
-    nomorTransaksi: String(r.nomor_transaksi),
-    brand: String(r.brand),
-    jenis: String(r.jenis),
-    departement: String(r.departement),
-    category: String(r.category),
-    skuLama: String(r.sku_lama),
-    kodeProduk: String(r.kode_produk),
-    namaPanjang: String(r.nama_panjang),
-    qty: Number(r.qty),
-    hpp: Number(r.hpp),
-    hargaJualNormal: Number(r.harga_jual_normal),
-    disc: Number(r.disc),
-    subtotal: Number(r.subtotal),
-    period: String(r.period),
-  }));
+  const records = (await idbGetSales(targetPeriod)) ?? [];
 
   salesCacheMap.set(targetPeriod, records);
   return records;
 }
 
 export async function saveSOHDataByRegion(records: SOHRecord[], region: 'jkt' | 'sby', period: string) {
-  const CHUNK_SIZE = 1000;
-  const mappedRecords = records.map(r => ({
-    kode_toko: r.kodeToko,
-    nama_toko: r.namaToko,
-    nama_cabang: r.namaCabang,
-    kode_produk: r.kodeProduk,
-    nama_panjang: r.namaPanjang,
-    brand: r.brand,
-    category: r.category,
-    tag_produk: r.tagProduk,
-    supplier: r.supplier,
-    soh: r.soh,
-    value_stock: r.valueStock,
-    avg_daily_sales: r.avgDailySales,
-    dsi: r.dsi,
-    min_stock: r.minStock,
-    max_stock: r.maxStock,
-    avg_sales_m3: r.avgSalesM3,
-    avg_sales_m2: r.avgSalesM2,
-    avg_sales_m1: r.avgSalesM1,
-    sales: r.sales,
-    region,
-    period,
-  }));
-
-  for (let i = 0; i < mappedRecords.length; i += CHUNK_SIZE) {
-    const chunk = mappedRecords.slice(i, i + CHUNK_SIZE);
-    const { error } = await supabase.from('soh').upsert(chunk);
-    if (error) throw error;
-  }
+  const recordsWithMeta = records.map(r => ({ ...r, period, region }));
+  await idbSaveSOH(period, region, recordsWithMeta);
 
   invalidateCache();
 }
@@ -477,54 +391,7 @@ export async function getSOHDataByRegion(region: 'jkt' | 'sby', period?: string)
     return cacheMap.get(targetPeriod)!;
   }
 
-  // Fetch all records from Supabase sequentially until exhausted
-  const pageSize = 1000;
-  const allData: Record<string, unknown>[] = [];
-  let from = 0;
-
-  while (true) {
-    const to = from + pageSize - 1;
-    const { data, error } = await supabase
-      .from('soh')
-      .select('*')
-      .eq('region', region)
-      .eq('period', targetPeriod)
-      .range(from, to);
-      
-    if (error) throw error;
-    
-    if (data && data.length > 0) {
-      allData.push(...data);
-      if (data.length < pageSize) break; // End of data
-      from += pageSize;
-    } else {
-      break;
-    }
-  }
-
-  const mapped = allData.map(r => ({
-    kodeToko: String(r.kode_toko),
-    namaToko: String(r.nama_toko),
-    namaCabang: String(r.nama_cabang),
-    kodeProduk: String(r.kode_produk),
-    namaPanjang: String(r.nama_panjang),
-    brand: String(r.brand),
-    category: String(r.category),
-    tagProduk: String(r.tag_produk),
-    supplier: String(r.supplier),
-    soh: Number(r.soh),
-    valueStock: Number(r.value_stock),
-    avgDailySales: Number(r.avg_daily_sales),
-    dsi: Number(r.dsi),
-    minStock: Number(r.min_stock),
-    maxStock: Number(r.max_stock),
-    avgSalesM3: Number(r.avg_sales_m3),
-    avgSalesM2: Number(r.avg_sales_m2),
-    avgSalesM1: Number(r.avg_sales_m1),
-    sales: Number(r.sales),
-    period: String(r.period),
-    region: String(r.region) as 'jkt' | 'sby',
-  }));
+  const mapped = (await idbGetSOH(targetPeriod, region)) ?? [];
 
   if (region === 'jkt') {
     sohJktCacheMap.set(targetPeriod, mapped);
@@ -550,61 +417,58 @@ export async function getSOHData(period?: string): Promise<SOHRecord[]> {
 }
 
 export async function saveUploadedFiles(files: UploadedFile[]) {
-  const { error } = await supabase
-    .from('uploaded_files')
-    .upsert(files.map(f => ({
-      id: f.id,
-      name: f.name,
-      type: f.type,
-      uploaded_at: f.uploadedAt,
-      record_count: f.recordCount,
-      period: f.period,
-    })));
-
-  if (error) throw error;
+  await idbReplaceUploadedFiles(files);
   invalidateCache();
 }
 
 export async function getUploadedFiles(): Promise<UploadedFile[]> {
   if (uploadedFilesCache) return uploadedFilesCache;
 
-  const { data, error } = await supabase
-    .from('uploaded_files')
-    .select('*')
-    .order('uploaded_at', { ascending: false });
-
-  if (error) throw error;
-
-  uploadedFilesCache = (data || []).map(f => ({
-    id: f.id,
-    name: f.name,
-    type: f.type as DataType,
-    uploadedAt: f.uploaded_at,
-    recordCount: Number(f.record_count),
-    period: f.period,
-  }));
+  const data = await idbGetUploadedFiles();
+  uploadedFilesCache = [...(data || [])]
+    .map(f => ({
+      id: f.id,
+      name: f.name,
+      type: f.type as DataType,
+      uploadedAt: f.uploadedAt,
+      recordCount: Number(f.recordCount),
+      period: f.period,
+    }))
+    .sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
 
   return uploadedFilesCache;
 }
 
 export async function getSalesCount(period?: string): Promise<number> {
-  let query = supabase.from('sales').select('*', { count: 'exact', head: true });
-  if (period) query = query.eq('period', period);
-  
-  const { count, error } = await query;
+  if (period) {
+    const sales = await idbGetSales(period);
+    return sales?.length ?? 0;
+  }
 
-  if (error) throw error;
-  return count || 0;
+  const files = await getUploadedFiles();
+  const periods = Array.from(new Set(files.filter(f => f.type === 'sales').map(f => f.period)));
+  let total = 0;
+  for (const p of periods) {
+    const sales = await idbGetSales(p);
+    total += sales?.length ?? 0;
+  }
+  return total;
 }
 
 export async function getSOHCountByRegion(region: 'jkt' | 'sby', period?: string): Promise<number> {
-  let query = supabase.from('soh').select('*', { count: 'exact', head: true }).eq('region', region);
-  if (period) query = query.eq('period', period);
+  if (period) {
+    const soh = await idbGetSOH(period, region);
+    return soh?.length ?? 0;
+  }
 
-  const { count, error } = await query;
-
-  if (error) throw error;
-  return count || 0;
+  const files = await getUploadedFiles();
+  const periods = Array.from(new Set(files.filter(f => f.type === `soh-${region}`).map(f => f.period)));
+  let total = 0;
+  for (const p of periods) {
+    const soh = await idbGetSOH(p, region);
+    total += soh?.length ?? 0;
+  }
+  return total;
 }
 
 export async function getSOHCount(period?: string): Promise<number> {
@@ -616,38 +480,35 @@ export async function getSOHCount(period?: string): Promise<number> {
 }
 
 export async function deleteUploadedFile(fileId: string, type: string, period: string) {
-  // Delete from uploaded_files
-  const { error: err1 } = await supabase.from('uploaded_files').delete().eq('id', fileId);
-  if (err1) throw err1;
+  await idbDeleteUploadedFile(fileId);
 
-  // Delete records from sales or soh for that period
   if (type === 'sales') {
-    const { error: err2 } = await supabase.from('sales').delete().eq('period', period);
-    if (err2) throw err2;
+    await idbDeleteSales(period);
   } else if (type === 'soh-jkt') {
-    const { error: err3 } = await supabase.from('soh').delete().eq('region', 'jkt').eq('period', period);
-    if (err3) throw err3;
+    await idbDeleteSOH(period, 'jkt');
   } else if (type === 'soh-sby') {
-    const { error: err4 } = await supabase.from('soh').delete().eq('region', 'sby').eq('period', period);
-    if (err4) throw err4;
+    await idbDeleteSOH(period, 'sby');
   }
 
   invalidateCache();
 }
 
 export async function clearDataByType(type: 'sales' | 'soh-jkt' | 'soh-sby') {
-  const { error: err1 } = await supabase.from('uploaded_files').delete().eq('type', type);
-  if (err1) throw err1;
+  const allFiles = await idbGetUploadedFiles();
+  const toDelete = allFiles.filter(f => f.type === type);
+  const remaining = allFiles.filter(f => f.type !== type);
+
+  await idbReplaceUploadedFiles(remaining);
 
   if (type === 'sales') {
-    const { error: err2 } = await supabase.from('sales').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    if (err2) throw err2;
+    const periods = Array.from(new Set(toDelete.map(f => f.period)));
+    for (const p of periods) await idbDeleteSales(p);
   } else if (type === 'soh-jkt') {
-    const { error: err3 } = await supabase.from('soh').delete().eq('region', 'jkt');
-    if (err3) throw err3;
+    const periods = Array.from(new Set(toDelete.map(f => f.period)));
+    for (const p of periods) await idbDeleteSOH(p, 'jkt');
   } else {
-    const { error: err4 } = await supabase.from('soh').delete().eq('region', 'sby');
-    if (err4) throw err4;
+    const periods = Array.from(new Set(toDelete.map(f => f.period)));
+    for (const p of periods) await idbDeleteSOH(p, 'sby');
   }
 
   invalidateCache();
@@ -910,6 +771,8 @@ export function formatNumber(val: number): string {
 
 // Historical Snapshot Functions
 export async function getHistoricalSnapshots(): Promise<HistoricalSnapshot[]> {
+  if (historicalSnapshotsCache) return historicalSnapshotsCache;
+
   const { data, error } = await supabase
     .from('historical_snapshots')
     .select('*')
@@ -920,7 +783,7 @@ export async function getHistoricalSnapshots(): Promise<HistoricalSnapshot[]> {
     return [];
   }
 
-  return (data || []).map(s => ({
+  historicalSnapshotsCache = (data || []).map(s => ({
     id: s.id,
     period: s.period,
     totalRevenue: Number(s.total_revenue),
@@ -931,6 +794,8 @@ export async function getHistoricalSnapshots(): Promise<HistoricalSnapshot[]> {
     storeData: s.store_data || {},
     createdAt: s.created_at,
   }));
+
+  return historicalSnapshotsCache;
 }
 
 export async function saveHistoricalSnapshot(snapshot: Omit<HistoricalSnapshot, 'id' | 'createdAt'>) {
@@ -947,6 +812,8 @@ export async function saveHistoricalSnapshot(snapshot: Omit<HistoricalSnapshot, 
     }, { onConflict: 'period' });
 
   if (error) throw error;
+
+  historicalSnapshotsCache = null;
 }
 
 export async function generateMonthlySnapshot(period: string): Promise<Omit<HistoricalSnapshot, 'id' | 'createdAt'>> {

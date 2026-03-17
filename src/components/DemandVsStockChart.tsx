@@ -10,6 +10,9 @@ interface Props {
 
 export function DemandVsStockChart({ soh }: Props) {
   const [selectedStore, setSelectedStore] = useState<string>('all');
+  const avgDemandColor = 'hsl(var(--chart-2))';
+  const sohColor = 'hsl(var(--chart-1))';
+  const maxStockColor = 'hsl(var(--destructive))';
 
   const storeList = useMemo(() => {
     const map = new Map<string, string>();
@@ -109,9 +112,9 @@ export function DemandVsStockChart({ soh }: Props) {
                       <p className="font-semibold text-foreground mb-1">{d?.fullName}</p>
                       <p className="font-mono text-muted-foreground">{d?.sku}</p>
                       <div className="mt-2 space-y-1">
-                        <p><span className="inline-block w-2.5 h-2.5 rounded-sm mr-1.5" style={{ backgroundColor: 'hsl(var(--primary))' }} />Avg Demand: <span className="font-semibold">{formatNumber(d?.avgDemand)}</span></p>
-                        <p><span className="inline-block w-2.5 h-2.5 rounded-sm mr-1.5" style={{ backgroundColor: 'hsl(var(--accent))' }} />SOH: <span className="font-semibold">{formatNumber(d?.soh)}</span></p>
-                        <p><span className="inline-block w-2.5 h-2.5 rounded-sm mr-1.5" style={{ backgroundColor: 'hsl(var(--destructive))' }} />Max Stock: <span className="font-semibold">{formatNumber(d?.maxStock)}</span></p>
+                        <p><span className="inline-block w-2.5 h-2.5 rounded-sm mr-1.5" style={{ backgroundColor: avgDemandColor }} />Avg Demand: <span className="font-semibold">{formatNumber(d?.avgDemand)}</span></p>
+                        <p><span className="inline-block w-2.5 h-2.5 rounded-sm mr-1.5" style={{ backgroundColor: sohColor }} />SOH: <span className="font-semibold">{formatNumber(d?.soh)}</span></p>
+                        <p><span className="inline-block w-2.5 h-2.5 rounded-sm mr-1.5" style={{ backgroundColor: maxStockColor }} />Max Stock: <span className="font-semibold">{formatNumber(d?.maxStock)}</span></p>
                       </div>
                     </div>
                   );
@@ -121,9 +124,9 @@ export function DemandVsStockChart({ soh }: Props) {
                 wrapperStyle={{ fontSize: 11 }}
                 formatter={(value: string) => <span className="text-muted-foreground text-xs">{value}</span>}
               />
-              <Bar dataKey="avgDemand" name="Avg Demand" fill="hsl(var(--primary))" barSize={8} radius={[0, 4, 4, 0]} />
-              <Bar dataKey="soh" name="Stock on Hand" fill="hsl(var(--accent))" barSize={8} radius={[0, 4, 4, 0]} />
-              <Line dataKey="maxStock" name="Max Stock" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ r: 2 }} />
+              <Bar dataKey="avgDemand" name="Avg Demand" fill={avgDemandColor} barSize={8} radius={[0, 4, 4, 0]} />
+              <Bar dataKey="soh" name="Stock on Hand" fill={sohColor} barSize={8} radius={[0, 4, 4, 0]} />
+              <Line dataKey="maxStock" name="Max Stock" stroke={maxStockColor} strokeWidth={2} dot={{ r: 2 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

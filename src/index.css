@@ -14,8 +14,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 30% 10%;
 
-    --primary: 220 60% 20%;
-    --primary-foreground: 40 100% 97%;
+    --primary: 160 70% 22%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 220 15% 92%;
     --secondary-foreground: 220 30% 15%;
@@ -23,15 +23,15 @@
     --muted: 220 15% 94%;
     --muted-foreground: 220 10% 45%;
 
-    --accent: 38 92% 50%;
-    --accent-foreground: 220 60% 10%;
+    --accent: 165 65% 40%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 220 15% 88%;
     --input: 220 15% 88%;
-    --ring: 38 92% 50%;
+    --ring: 165 65% 40%;
 
     --radius: 0.625rem;
 
@@ -42,16 +42,16 @@
     --info: 210 80% 52%;
     --info-foreground: 0 0% 100%;
 
-    --sidebar-background: 220 60% 12%;
+    --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 220 15% 85%;
-    --sidebar-primary: 38 92% 50%;
-    --sidebar-primary-foreground: 220 60% 10%;
-    --sidebar-accent: 220 50% 18%;
-    --sidebar-accent-foreground: 220 15% 90%;
-    --sidebar-border: 220 40% 20%;
-    --sidebar-ring: 38 92% 50%;
+    --sidebar-primary: 165 65% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 35% 18%;
+    --sidebar-accent-foreground: 220 15% 92%;
+    --sidebar-border: 222 25% 20%;
+    --sidebar-ring: 165 65% 40%;
 
-    --chart-1: 38 92% 50%;
+    --chart-1: 165 65% 40%;
     --chart-2: 210 80% 52%;
     --chart-3: 152 60% 40%;
     --chart-4: 0 72% 51%;
@@ -70,10 +70,45 @@
 
 @layer utilities {
   .gradient-sidebar {
-    background: linear-gradient(180deg, hsl(220 60% 14%) 0%, hsl(220 60% 8%) 100%);
+    background: linear-gradient(180deg, hsl(222 47% 12%) 0%, hsl(222 47% 8%) 100%);
   }
   .gradient-card-highlight {
-    background: linear-gradient(135deg, hsl(38 92% 50% / 0.08) 0%, hsl(210 80% 52% / 0.05) 100%);
+    background: linear-gradient(135deg, hsl(165 65% 40% / 0.10) 0%, hsl(210 80% 52% / 0.05) 100%);
+  }
+  .futuristic-surface {
+    position: relative;
+    background:
+      radial-gradient(900px 600px at 18% 18%, hsl(var(--primary) / 0.10), transparent 60%),
+      radial-gradient(700px 520px at 82% 72%, hsl(var(--accent) / 0.10), transparent 58%),
+      radial-gradient(1200px 900px at 50% 110%, hsl(var(--foreground) / 0.04), transparent 65%),
+      linear-gradient(180deg, hsl(var(--background)), hsl(var(--background)));
+  }
+  .futuristic-surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.20) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.20) 1px, transparent 1px),
+      radial-gradient(circle at 1px 1px, hsl(var(--primary) / 0.14) 1px, transparent 1px),
+      repeating-linear-gradient(135deg, transparent 0 10px, hsl(var(--foreground) / 0.015) 10px 11px);
+    background-size: 72px 72px, 72px 72px, 18px 18px, 28px 28px;
+    background-position: center;
+    opacity: 0.55;
+    mask-image: radial-gradient(ellipse at center, black 40%, transparent 78%);
+  }
+  .futuristic-surface::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(420px 220px at 55% 30%, hsl(var(--primary) / 0.12), transparent 70%),
+      radial-gradient(380px 260px at 45% 70%, hsl(var(--accent) / 0.10), transparent 72%),
+      linear-gradient(180deg, transparent, hsl(var(--foreground) / 0.03));
+    opacity: 0.70;
+    mix-blend-mode: multiply;
   }
   .shadow-card {
     box-shadow: 0 1px 3px hsl(220 30% 10% / 0.06), 0 1px 2px hsl(220 30% 10% / 0.04);
