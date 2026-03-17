@@ -42,6 +42,8 @@ export default function HistoricalPage() {
         getUploadedFiles()
       ]);
       setSnapshots(data);
+      console.log("Loaded snapshots:", data);
+      console.log("Available files:", files);
       
       const periods = Array.from(new Set(files.map(f => f.period))).sort();
       setAvailablePeriods(periods);

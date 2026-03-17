@@ -371,16 +371,12 @@ export async function getSalesData(period?: string): Promise<SalesRecord[]> {
   // Cache check (only for latest/current)
   if (!period && salesCache) return salesCache;
 
-  // Fetch all records from Supabase in parallel chunks
-  const totalCount = await getSalesCount(targetPeriod);
+  // Fetch all records from Supabase sequentially until exhausted
   const pageSize = 1000;
-  const numChunks = Math.ceil(totalCount / pageSize);
-  
-  if (numChunks === 0) return [];
-
   const allData: Record<string, unknown>[] = [];
-  for (let i = 0; i < numChunks; i++) {
-    const from = i * pageSize;
+  let from = 0;
+
+  while (true) {
     const to = from + pageSize - 1;
     const { data, error } = await supabase
       .from('sales')
@@ -390,8 +386,13 @@ export async function getSalesData(period?: string): Promise<SalesRecord[]> {
       .range(from, to);
       
     if (error) throw error;
+    
     if (data && data.length > 0) {
       allData.push(...data);
+      if (data.length < pageSize) break; // End of data
+      from += pageSize;
+    } else {
+      break;
     }
   }
 
@@ -470,16 +471,12 @@ export async function getSOHDataByRegion(region: 'jkt' | 'sby', period?: string)
   const cache = region === 'jkt' ? sohJktCache : sohSbyCache;
   if (!period && cache) return cache;
 
-  // Fetch all records from Supabase in parallel chunks
-  const totalCount = await getSOHCountByRegion(region, targetPeriod);
+  // Fetch all records from Supabase sequentially until exhausted
   const pageSize = 1000;
-  const numChunks = Math.ceil(totalCount / pageSize);
-
-  if (numChunks === 0) return [];
-
   const allData: Record<string, unknown>[] = [];
-  for (let i = 0; i < numChunks; i++) {
-    const from = i * pageSize;
+  let from = 0;
+
+  while (true) {
     const to = from + pageSize - 1;
     const { data, error } = await supabase
       .from('soh')
@@ -489,8 +486,13 @@ export async function getSOHDataByRegion(region: 'jkt' | 'sby', period?: string)
       .range(from, to);
       
     if (error) throw error;
+    
     if (data && data.length > 0) {
       allData.push(...data);
+      if (data.length < pageSize) break; // End of data
+      from += pageSize;
+    } else {
+      break;
     }
   }
 
