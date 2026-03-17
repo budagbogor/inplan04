@@ -147,14 +147,14 @@ export function AppSidebar() {
                       end={item.to === '/'}
                       onClick={() => setMobileOpen(false)}
                       className={({ isActive }) => cn(
-                        "group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border-l-2",
+                        "group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border-l-2 min-w-0",
                         isActive
                           ? "bg-sidebar-accent/70 text-sidebar-accent-foreground border-sidebar-primary"
                           : "text-sidebar-foreground/75 border-transparent hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
                       )}
                     >
                       <item.icon className="w-4 h-4 shrink-0 opacity-90 group-hover:opacity-100" />
-                      <span className="truncate">{item.label}</span>
+                      <span className="min-w-0 flex-1 whitespace-normal break-words leading-snug">{item.label}</span>
                     </RouterNavLink>
                   ))}
                 </div>
@@ -246,7 +246,7 @@ export function AppSidebar() {
                   to={item.to}
                   end={item.to === '/'}
                   className={({ isActive }) => cn(
-                    "group flex items-center gap-3 rounded-lg text-sm font-medium transition-colors border-l-2",
+                    "group flex items-center gap-3 rounded-lg text-sm font-medium transition-colors border-l-2 min-w-0",
                     collapsed ? "px-2 py-2.5 justify-center" : "px-3 py-2.5",
                     isActive
                       ? "bg-sidebar-accent/70 text-sidebar-accent-foreground border-sidebar-primary"
@@ -255,7 +255,7 @@ export function AppSidebar() {
                   title={collapsed ? item.label : undefined}
                 >
                   <item.icon className="w-4 h-4 shrink-0 opacity-90 group-hover:opacity-100" />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
+                  {!collapsed && <span className="min-w-0 flex-1 whitespace-normal break-words leading-snug">{item.label}</span>}
                 </RouterNavLink>
               ))}
             </div>
