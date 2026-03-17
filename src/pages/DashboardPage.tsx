@@ -63,6 +63,14 @@ export default function DashboardPage() {
       .sort((a, b) => b.count - a.count);
   }, [soh, selectedStore]);
 
+  const currentPeriodName = useMemo(() => {
+    const p = sales[0]?.period || soh[0]?.period;
+    if (!p) return 'Semua Periode';
+    const [year, month] = p.split('-');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+    return `${months[parseInt(month) - 1]} ${year}`;
+  }, [sales, soh]);
+
   if (loading) return <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground text-sm">Memuat data...</div>;
 
   if (sales.length === 0 && soh.length === 0) {
@@ -92,16 +100,16 @@ export default function DashboardPage() {
       {/* Sales Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
-          <StatCard title="Total Revenue" value={formatCurrency(totalRevenue)} icon={DollarSign} variant="accent" />
+          <StatCard title="Total Revenue" value={formatCurrency(totalRevenue)} subtitle={`Periode: ${currentPeriodName}`} icon={DollarSign} variant="accent" />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-          <StatCard title="Item Terjual" value={formatNumber(totalItems)} icon={TrendingUp} variant="success" />
+          <StatCard title="Item Terjual" value={formatNumber(totalItems)} subtitle={`Periode: ${currentPeriodName}`} icon={TrendingUp} variant="success" />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <StatCard title="Transaksi" value={formatNumber(uniqueTransactions)} icon={BarChart3} />
+          <StatCard title="Transaksi" value={formatNumber(uniqueTransactions)} subtitle={`Periode: ${currentPeriodName}`} icon={BarChart3} />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <StatCard title="Toko Aktif" value={formatNumber(uniqueStores)} subtitle="nasional" icon={Package} />
+          <StatCard title="Toko Aktif" value={formatNumber(uniqueStores)} subtitle={`Periode: ${currentPeriodName} • nasional`} icon={Package} />
         </motion.div>
       </div>
 
@@ -109,16 +117,16 @@ export default function DashboardPage() {
       {soh.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <StatCard title="Nilai Inventory (HPP)" value={formatCurrency(totalInventoryValue)} icon={Warehouse} variant="warning" />
+            <StatCard title="Nilai Inventory (HPP)" value={formatCurrency(totalInventoryValue)} subtitle={`Periode: ${currentPeriodName}`} icon={Warehouse} variant="warning" />
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-            <StatCard title="Total SKU" value={formatNumber(totalUniqueSku)} subtitle="unik" icon={Boxes} />
+            <StatCard title="Total SKU" value={formatNumber(totalUniqueSku)} subtitle={`Periode: ${currentPeriodName} • unik`} icon={Boxes} />
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-            <StatCard title="SKU Aktif (Good Stock)" value={formatNumber(totalActiveSku)} subtitle={`${totalUniqueSku > 0 ? Math.round((totalActiveSku / totalUniqueSku) * 100) : 0}% dari total`} icon={CheckCircle} variant="success" />
+            <StatCard title="SKU Aktif (Good Stock)" value={formatNumber(totalActiveSku)} subtitle={`Periode: ${currentPeriodName} • ${totalUniqueSku > 0 ? Math.round((totalActiveSku / totalUniqueSku) * 100) : 0}% dari total`} icon={CheckCircle} variant="success" />
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
-            <StatCard title="Kategori Tag" value={formatNumber(skuPerTag.length)} subtitle="tag produk aktif" icon={Tags} />
+            <StatCard title="Kategori Tag" value={formatNumber(skuPerTag.length)} subtitle={`Periode: ${currentPeriodName} • tag produk aktif`} icon={Tags} />
           </motion.div>
         </div>
       )}
