@@ -997,16 +997,23 @@ export async function generateMonthlySnapshot(period: string): Promise<Omit<Hist
   const overstockCount = summaries.filter(s => s.movingClass === 'dead' || s.movingClass === 'slow').length;
   const stockEfficiency = totalSkus > 0 ? ((totalSkus - overstockCount) / totalSkus) * 100 : 0;
 
-  // 6. Calculate Per-Store Metrics
+  // 6. Calculate Per-Store Metrics (using namaToko as key for readable dropdown)
   const storeData: Omit<HistoricalSnapshot, 'id' | 'createdAt' | 'period'>['storeData'] = {};
   
+  // Build kode -> nama mapping from SOH data
+  const kodeToNama = new Map<string, string>();
+  soh.forEach(s => kodeToNama.set(s.kodeToko, s.namaToko));
+  // Fallback for sales if not in SOH
+  sales.forEach(s => { if (!kodeToNama.has(s.kodeToko)) kodeToNama.set(s.kodeToko, s.namaToko || s.kodeToko); });
+
   // Get all unique store codes
   const storeCodes = Array.from(new Set([...sales.map(s => s.kodeToko), ...soh.map(s => s.kodeToko)]));
   
-  for (const store of storeCodes) {
-    const storeSales = sales.filter(s => s.kodeToko === store);
-    const storeSoh = soh.filter(s => s.kodeToko === store);
-    const storePrevSoh = prevSoh.filter(s => s.kodeToko === store);
+  for (const storeCode of storeCodes) {
+    const storeName = kodeToNama.get(storeCode) || storeCode;
+    const storeSales = sales.filter(s => s.kodeToko === storeCode);
+    const storeSoh = soh.filter(s => s.kodeToko === storeCode);
+    const storePrevSoh = prevSoh.filter(s => s.kodeToko === storeCode);
 
     const sTotalCogs = storeSales.reduce((sum, r) => sum + (r.qty * (r.hpp || 0)), 0);
     const sTotalRev = storeSales.reduce((sum, r) => sum + r.subtotal, 0);
@@ -1032,7 +1039,7 @@ export async function generateMonthlySnapshot(period: string): Promise<Omit<Hist
     const sOverstock = sSummaries.filter(s => s.movingClass === 'dead' || s.movingClass === 'slow').length;
     const sEfficiency = sTotalSkus > 0 ? ((sTotalSkus - sOverstock) / sTotalSkus) * 100 : 0;
 
-    storeData[store] = {
+    storeData[storeName] = {
       totalRevenue: sTotalRev,
       totalStockValue: sEndingValue,
       stockEfficiency: sEfficiency,
