@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 /* ─── Types ─── */
 interface StoreHealth {
@@ -222,8 +223,8 @@ export default function AnalysisPage() {
   const [expandedStore, setExpandedStore] = useState<string | null>(null);
   const [selectedSku, setSelectedSku] = useState<SkuSummary | null>(null);
   const [isWsExpanded, setIsWsExpanded] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('');
+  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
+  const [currentPeriod, setCurrentPeriod] = useState<string>('');
 
   const months = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -231,39 +232,37 @@ export default function AnalysisPage() {
   ];
 
   useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      try {
-        const files = await getUploadedFiles();
-        setUploadedFiles(files);
-        
-        // Default to latest period if none selected
-        let period = selectedPeriod;
-        if (!period && files.length > 0) {
-          period = files[0].period;
-          setSelectedPeriod(period);
-        }
-
-        const [sales, soh] = await Promise.all([
-          getSalesData(period),
-          getSOHData(period)
-        ]);
-        setSalesData(sales);
-        setSohData(soh);
-      } catch (err) {
-        console.error(err);
-      } finally {
+    // Load available periods first
+    getUploadedFiles().then(files => {
+      const periods = Array.from(new Set(files.map(f => f.period))).filter(Boolean).sort().reverse();
+      setAvailablePeriods(periods);
+      if (periods.length > 0 && !currentPeriod) {
+        setCurrentPeriod(periods[0]);
+      } else if (periods.length === 0) {
         setLoading(false);
       }
-    }
-    loadData();
-  }, [selectedPeriod]);
+    });
+  }, [currentPeriod]);
+
+  useEffect(() => {
+    if (!currentPeriod && availablePeriods.length > 0) return; // Wait for initial period setting
+
+    setLoading(true);
+    Promise.all([getSalesData(currentPeriod), getSOHData(currentPeriod)]).then(([sales, soh]) => {
+      setSalesData(sales);
+      setSohData(soh);
+      setLoading(false);
+    }).catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  }, [currentPeriod, availablePeriods.length]);
 
   const settings = useMemo(() => getOrderSettings(), []);
   
   const filteredSoh = useMemo(() => 
-    filterByActiveStores(sohData, settings), 
-  [sohData, settings]);
+    filterByActiveStores(sohData), 
+  [sohData]);
 
   const orderSummaries = useMemo(() => 
     calculateStoreOrders(filteredSoh, settings),
@@ -292,10 +291,7 @@ export default function AnalysisPage() {
     });
   }, [skuSummaries]);
 
-  const availablePeriods = useMemo(() => {
-    const periods = uploadedFiles.map(f => f.period);
-    return Array.from(new Set(periods)).sort((a, b) => b.localeCompare(a));
-  }, [uploadedFiles]);
+  const isDataEmpty = sohData.length === 0;
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground text-sm">Memuat data...</div>;
 
@@ -316,16 +312,21 @@ export default function AnalysisPage() {
           {availablePeriods.length > 0 && (
             <div className="flex items-center gap-2 mr-2">
               <Calendar className="w-4 h-4 text-muted-foreground" />
-              <select 
-                value={selectedPeriod} 
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="text-sm bg-background border rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-primary outline-none"
-              >
-                {availablePeriods.map(p => {
-                  const [year, month] = p.split('-');
-                  return <option key={p} value={p}>{months[parseInt(month) - 1]} {year}</option>;
-                })}
-              </select>
+              <Select value={currentPeriod} onValueChange={setCurrentPeriod}>
+                <SelectTrigger className="w-[120px] sm:w-[140px] bg-card h-8 text-xs border-muted-foreground/20">
+                  <SelectValue placeholder="Pilih Periode" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePeriods.map(p => {
+                    const [year, month] = p.split('-');
+                    return (
+                      <SelectItem key={p} value={p}>
+                        {months[parseInt(month) - 1]} {year}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
             </div>
           )}
           <div className="relative">
