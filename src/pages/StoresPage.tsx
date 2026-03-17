@@ -6,11 +6,12 @@ import { StatCard } from '@/components/StatCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getSOHData, formatNumber } from '@/lib/dataStore';
+import { getSOHData, formatNumber, getUploadedFiles } from '@/lib/dataStore';
 import { getOrderSettings, filterByActiveStores } from '@/lib/orderSettings';
 import { calculateStoreOrders } from '@/lib/storeOrders';
-import type { SOHRecord, StoreOrderSummary, StoreOrderItem } from '@/lib/types';
+import type { SOHRecord } from '@/lib/types';
 import ExcelJS from 'exceljs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const priorityConfig = {
   critical: { label: 'Kritis', className: 'bg-destructive/10 text-destructive border-destructive/30' },
@@ -24,10 +25,28 @@ export default function StoresPage() {
   const [loading, setLoading] = useState(true);
   const [expandedStore, setExpandedStore] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
+  const [currentPeriod, setCurrentPeriod] = useState<string>('');
 
   useEffect(() => {
-    getSOHData().then(d => { setSoh(filterByActiveStores(d)); setLoading(false); });
-  }, []);
+    // Load available periods first
+    getUploadedFiles().then(files => {
+      const periods = Array.from(new Set(files.map(f => f.period))).filter(Boolean).sort().reverse();
+      setAvailablePeriods(periods);
+      if (periods.length > 0 && !currentPeriod) {
+        setCurrentPeriod(periods[0]);
+      } else if (periods.length === 0) {
+        setLoading(false);
+      }
+    });
+  }, [currentPeriod]);
+
+  useEffect(() => {
+    if (!currentPeriod && availablePeriods.length > 0) return; // Wait for initial period setting
+
+    setLoading(true);
+    getSOHData(currentPeriod).then(d => { setSoh(filterByActiveStores(d)); setLoading(false); });
+  }, [currentPeriod, availablePeriods.length]);
 
   const settings = useMemo(() => getOrderSettings(), []);
   const stores = useMemo(() => calculateStoreOrders(soh, settings), [soh, settings]);
@@ -114,9 +133,32 @@ export default function StoresPage() {
   return (
     <div className="space-y-4 sm:space-y-6">
       <PageHeader title="Suggest Order Per Toko" description={`${stores.length} toko dengan SKU perlu diorder`}>
-        <Button onClick={exportAll} variant="outline" size="sm" className="gap-2">
-          <Download className="w-4 h-4" /> Export
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end w-full sm:w-auto mt-2 sm:mt-0">
+          {availablePeriods.length > 0 && (
+            <div className="flex items-center gap-2 mr-0 sm:mr-2">
+              <span className="text-xs font-medium text-muted-foreground whitespace-nowrap hidden sm:inline">Periode:</span>
+              <Select value={currentPeriod} onValueChange={setCurrentPeriod}>
+                <SelectTrigger className="w-[120px] sm:w-[140px] bg-card h-8 text-xs border-muted-foreground/20">
+                  <SelectValue placeholder="Pilih Periode" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePeriods.map(p => {
+                    const [year, month] = p.split('-');
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+                    return (
+                      <SelectItem key={p} value={p}>
+                        {months[parseInt(month) - 1]} {year}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <Button onClick={exportAll} variant="outline" size="sm" className="gap-2">
+            <Download className="w-4 h-4" /> Export
+          </Button>
+        </div>
       </PageHeader>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">

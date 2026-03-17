@@ -9,11 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/PageHeader';
 import { StatCard } from '@/components/StatCard';
-import { getSOHData, formatNumber, formatCurrency } from '@/lib/dataStore';
+import { getSOHData, formatNumber, formatCurrency, getUploadedFiles } from '@/lib/dataStore';
 import { getOrderSettings, filterByActiveStores } from '@/lib/orderSettings';
 import { calculateStoreOrders } from '@/lib/storeOrders';
 import type { SOHRecord, StoreOrderItem } from '@/lib/types';
 import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 
 interface POItem {
   kodeProduk: string;
@@ -117,18 +119,36 @@ export default function POSupplierPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
   const [poNumber, setPoNumber] = useState(`PO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-001`);
   const [poNotes, setPoNotes] = useState('');
+  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
+  const [currentPeriod, setCurrentPeriod] = useState<string>('');
   const printRef = useRef<HTMLDivElement>(null);
 
   const settings = useMemo(() => getOrderSettings(), []);
 
   useEffect(() => {
-    getSOHData().then(d => {
+    // Load available periods first
+    getUploadedFiles().then(files => {
+      const periods = Array.from(new Set(files.map(f => f.period))).filter(Boolean).sort().reverse();
+      setAvailablePeriods(periods);
+      if (periods.length > 0 && !currentPeriod) {
+        setCurrentPeriod(periods[0]);
+      } else if (periods.length === 0) {
+        setLoading(false);
+      }
+    });
+  }, [currentPeriod]);
+
+  useEffect(() => {
+    if (!currentPeriod && availablePeriods.length > 0) return; // Wait for initial period setting
+
+    setLoading(true);
+    getSOHData(currentPeriod).then(d => {
       const filtered = filterByActiveStores(d);
       setSoh(filtered);
       setItems(aggregatePOItems(filtered, settings));
       setLoading(false);
     });
-  }, [settings]);
+  }, [settings, currentPeriod, availablePeriods.length]);
 
   const activeItems = useMemo(() => items.filter(i => !i.removed), [items]);
   const supplierGroups = useMemo(() => groupBySupplier(items), [items]);
@@ -438,7 +458,28 @@ export default function POSupplierPage() {
   return (
     <div className="space-y-4 sm:space-y-6">
       <PageHeader title="PO to Supplier" description="Purchase Order per supplier — review, adjust, dan cetak PO profesional">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end w-full sm:w-auto mt-2 sm:mt-0">
+          {availablePeriods.length > 0 && (
+            <div className="flex items-center gap-2 mr-0 sm:mr-2">
+              <span className="text-xs font-medium text-muted-foreground whitespace-nowrap hidden sm:inline">Periode:</span>
+              <Select value={currentPeriod} onValueChange={setCurrentPeriod}>
+                <SelectTrigger className="w-[120px] sm:w-[140px] bg-card h-8 text-xs border-muted-foreground/20">
+                  <SelectValue placeholder="Pilih Periode" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePeriods.map(p => {
+                    const [year, month] = p.split('-');
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+                    return (
+                      <SelectItem key={p} value={p}>
+                        {months[parseInt(month) - 1]} {year}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <Button onClick={resetAll} variant="outline" size="sm" className="gap-1.5 text-xs">
             Reset
           </Button>
@@ -449,7 +490,7 @@ export default function POSupplierPage() {
             <Printer className="w-3.5 h-3.5" /> Print All
           </Button>
           <Button onClick={() => handleExportExcel()} size="sm" variant="secondary" className="gap-1.5 bg-success/10 text-success hover:bg-success/20 border border-success/20">
-            <Download className="w-3.5 h-3.5" /> Export Excel
+            <Download className="w-3.5 h-3.5" /> Export
           </Button>
         </div>
       </PageHeader>

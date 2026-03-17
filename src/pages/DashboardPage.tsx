@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Package, TrendingUp, DollarSign, BarChart3, Boxes, Tags, CheckCircle, Warehouse } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
 import { PageHeader } from '@/components/PageHeader';
-import { getSalesData, getSOHData, getSkuSummaries, formatCurrency, formatNumber } from '@/lib/dataStore';
+import { getSalesData, getSOHData, getSkuSummaries, formatCurrency, formatNumber, getUploadedFiles } from '@/lib/dataStore';
 import { filterByActiveStores } from '@/lib/orderSettings';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,13 +15,33 @@ export default function DashboardPage() {
   const [soh, setSoh] = useState<SOHRecord[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
+  const [currentPeriod, setCurrentPeriod] = useState<string>('');
   const navigate = useNavigate();
 
   useEffect(() => {
-    Promise.all([getSalesData(), getSOHData()]).then(([s, h]) => {
-      setSales(filterByActiveStores(s)); setSoh(filterByActiveStores(h)); setLoading(false);
+    // Load available periods first
+    getUploadedFiles().then(files => {
+      const periods = Array.from(new Set(files.map(f => f.period))).filter(Boolean).sort().reverse();
+      setAvailablePeriods(periods);
+      if (periods.length > 0 && !currentPeriod) {
+        setCurrentPeriod(periods[0]);
+      } else if (periods.length === 0) {
+        setLoading(false);
+      }
     });
-  }, []);
+  }, [currentPeriod]);
+
+  useEffect(() => {
+    if (!currentPeriod && availablePeriods.length > 0) return; // Wait for initial period setting
+    
+    setLoading(true);
+    Promise.all([getSalesData(currentPeriod), getSOHData(currentPeriod)]).then(([s, h]) => {
+      setSales(filterByActiveStores(s)); 
+      setSoh(filterByActiveStores(h)); 
+      setLoading(false);
+    });
+  }, [currentPeriod, availablePeriods.length]);
 
   const skuSummaries = useMemo(() => getSkuSummaries(sales, soh), [sales, soh]);
 
@@ -95,7 +115,29 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Dashboard" description="Ringkasan penjualan dan inventori nasional" />
+      <PageHeader title="Dashboard" description="Ringkasan penjualan dan inventori nasional">
+        {availablePeriods.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Periode:</span>
+            <Select value={currentPeriod} onValueChange={setCurrentPeriod}>
+              <SelectTrigger className="w-[140px] bg-card h-8 text-xs border-muted-foreground/20">
+                <SelectValue placeholder="Pilih Periode" />
+              </SelectTrigger>
+              <SelectContent>
+                {availablePeriods.map(p => {
+                  const [year, month] = p.split('-');
+                  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+                  return (
+                    <SelectItem key={p} value={p}>
+                      {months[parseInt(month) - 1]} {year}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </PageHeader>
 
       {/* Sales Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
