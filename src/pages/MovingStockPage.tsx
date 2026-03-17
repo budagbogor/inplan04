@@ -26,6 +26,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getSOHData, getSalesData, getSkuSummaries, formatCurrency, getUploadedFiles } from '@/lib/dataStore';
 import type { SkuSummary, UploadedFile } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -35,41 +36,35 @@ export default function MovingStockPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSku, setSelectedSku] = useState<SkuSummary | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('');
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
+  const [currentPeriod, setCurrentPeriod] = useState<string>('');
 
   useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      try {
-        const files = await getUploadedFiles();
-        setUploadedFiles(files);
-
-        let period = selectedPeriod;
-        if (!period && files.length > 0) {
-          period = files[0].period;
-          setSelectedPeriod(period);
-        }
-
-        const [soh, sales] = await Promise.all([
-          getSOHData(period),
-          getSalesData(period)
-        ]);
-        const summaries = getSkuSummaries(sales, soh);
-        setSkuSummaries(summaries);
-      } catch (err) {
-        console.error(err);
-      } finally {
+    // Load available periods first
+    getUploadedFiles().then(files => {
+      const periods = Array.from(new Set(files.map(f => f.period))).filter(Boolean).sort().reverse();
+      setAvailablePeriods(periods);
+      if (periods.length > 0 && !currentPeriod) {
+        setCurrentPeriod(periods[0]);
+      } else if (periods.length === 0) {
         setLoading(false);
       }
-    }
-    loadData();
-  }, [selectedPeriod]);
+    });
+  }, [currentPeriod]);
 
-  const availablePeriods = useMemo(() => {
-    const periods = uploadedFiles.map(f => f.period);
-    return Array.from(new Set(periods)).sort((a, b) => b.localeCompare(a));
-  }, [uploadedFiles]);
+  useEffect(() => {
+    if (!currentPeriod && availablePeriods.length > 0) return; // Wait for initial period setting
+
+    setLoading(true);
+    Promise.all([getSalesData(currentPeriod), getSOHData(currentPeriod)]).then(([sales, soh]) => {
+      const summaries = getSkuSummaries(sales, soh);
+      setSkuSummaries(summaries);
+      setLoading(false);
+    }).catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  }, [currentPeriod, availablePeriods.length]);
 
   const months = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -163,7 +158,30 @@ export default function MovingStockPage() {
       <PageHeader 
         title="Moving Stock Analysis" 
         description="Klasifikasi SKU berdasarkan tingkat pergerakan bulanan (Industry Standard)" 
-      />
+      >
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end w-full sm:w-auto mt-2 sm:mt-0">
+          {availablePeriods.length > 0 && (
+            <div className="flex items-center gap-2 mr-0 sm:mr-2">
+              <span className="text-xs font-medium text-muted-foreground whitespace-nowrap hidden sm:inline">Periode:</span>
+              <Select value={currentPeriod} onValueChange={setCurrentPeriod}>
+                <SelectTrigger className="w-[120px] sm:w-[140px] bg-card h-8 text-xs border-muted-foreground/20">
+                  <SelectValue placeholder="Pilih Periode" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePeriods.map(p => {
+                    const [year, month] = p.split('-');
+                    return (
+                      <SelectItem key={p} value={p}>
+                        {months[parseInt(month) - 1]} {year}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      </PageHeader>
 
       {/* Stats Overview */}
       <motion.div 
