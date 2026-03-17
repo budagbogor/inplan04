@@ -15,7 +15,8 @@ import {
   FileText,
   Activity,
   BookOpen,
-  BarChart3
+  BarChart3,
+  History
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -26,6 +27,7 @@ const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/analysis', label: 'Analisa', icon: Activity },
   { to: '/moving-stock', label: 'Moving Stock', icon: BarChart3 },
+  { to: '/historical', label: 'Tren Historis', icon: History },
   { to: '/average-demand', label: 'Avg Demand', icon: TrendingUp },
   { to: '/inventory', label: 'Klasifikasi ABC', icon: Package },
   { to: '/stores', label: 'Suggest Order Per Toko', icon: Store },

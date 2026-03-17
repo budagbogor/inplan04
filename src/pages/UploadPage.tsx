@@ -10,10 +10,10 @@ import {
   saveSOHDataByRegion,
   getUploadedFiles,
   saveUploadedFiles,
-  clearDataByType,
   getSalesCount,
   getSOHCountByRegion,
   invalidateCache,
+  deleteUploadedFile,
 } from '@/lib/dataStore';
 import { syncSettingsWithData } from '@/lib/orderSettings';
 import { cn } from '@/lib/utils';
@@ -64,51 +64,82 @@ export default function UploadPage() {
   const [dragOver, setDragOver] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [showTypeDialog, setShowTypeDialog] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [refreshing, setRefreshing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const currentPeriod = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+
+  const loadData = useCallback(async () => {
+    const [f, s, jkt, sby] = await Promise.all([
+      getUploadedFiles(), 
+      getSalesCount(currentPeriod), 
+      getSOHCountByRegion('jkt', currentPeriod), 
+      getSOHCountByRegion('sby', currentPeriod)
+    ]);
+    setFiles(f);
+    setSalesCount(s);
+    setSohJktCount(jkt);
+    setSohSbyCount(sby);
+  }, [currentPeriod]);
+
   useEffect(() => {
-    Promise.all([getUploadedFiles(), getSalesCount(), getSOHCountByRegion('jkt'), getSOHCountByRegion('sby')]).then(([f, s, jkt, sby]) => {
-      setFiles(f);
-      setSalesCount(s);
-      setSohJktCount(jkt);
-      setSohSbyCount(sby);
-    });
-  }, []);
+    loadData();
+  }, [loadData]);
 
   const hasSales = files.some(f => f.type === 'sales');
   const hasSohJkt = files.some(f => f.type === 'soh-jkt');
   const hasSohSby = files.some(f => f.type === 'soh-sby');
 
   const refreshCounts = useCallback(async () => {
-    const [s, jkt, sby] = await Promise.all([getSalesCount(), getSOHCountByRegion('jkt'), getSOHCountByRegion('sby')]);
+    const [s, jkt, sby] = await Promise.all([
+      getSalesCount(currentPeriod), 
+      getSOHCountByRegion('jkt', currentPeriod), 
+      getSOHCountByRegion('sby', currentPeriod)
+    ]);
     setSalesCount(s);
     setSohJktCount(jkt);
     setSohSbyCount(sby);
-  }, []);
+  }, [currentPeriod]);
 
   const processFile = async (file: File, type: DataType) => {
+    const period = currentPeriod;
     if (type === 'sales') {
       const records = await parseSalesExcel(file);
       if (records.length === 0) { toast.error(`Tidak ada data penjualan dari ${file.name}`); return; }
-      await saveSalesData(records);
-      const newFile: UploadedFile = { id: Date.now().toString(), name: file.name, type: 'sales', uploadedAt: new Date().toISOString(), recordCount: records.length };
+      await saveSalesData(records, period);
+      const newFile: UploadedFile = { 
+        id: Date.now().toString(), 
+        name: file.name, 
+        type: 'sales', 
+        uploadedAt: new Date().toISOString(), 
+        recordCount: records.length,
+        period 
+      };
       const currentFiles = await getUploadedFiles();
-      const updated = [...currentFiles.filter(f => f.type !== 'sales'), newFile];
+      const updated = [...currentFiles, newFile];
       await saveUploadedFiles(updated);
       setFiles(updated);
-      toast.success(`${records.length} data penjualan berhasil diupload`);
+      toast.success(`${records.length} data penjualan berhasil diupload untuk periode ${period}`);
     } else {
       const region = type === 'soh-jkt' ? 'jkt' as const : 'sby' as const;
       const records = await parseSOHExcel(file);
       if (records.length === 0) { toast.error(`Tidak ada data stok dari ${file.name}`); return; }
-      await saveSOHDataByRegion(records, region);
-      const newFile: UploadedFile = { id: Date.now().toString(), name: file.name, type, uploadedAt: new Date().toISOString(), recordCount: records.length };
+      await saveSOHDataByRegion(records, region, period);
+      const newFile: UploadedFile = { 
+        id: Date.now().toString(), 
+        name: file.name, 
+        type, 
+        uploadedAt: new Date().toISOString(), 
+        recordCount: records.length,
+        period 
+      };
       const currentFiles = await getUploadedFiles();
-      const updated = [...currentFiles.filter(f => f.type !== type), newFile];
+      const updated = [...currentFiles, newFile];
       await saveUploadedFiles(updated);
       setFiles(updated);
-      toast.success(`${records.length} data stok ${region === 'jkt' ? 'Jakarta' : 'Surabaya'} berhasil diupload`);
+      toast.success(`${records.length} data stok ${region === 'jkt' ? 'Jakarta' : 'Surabaya'} berhasil diupload untuk periode ${period}`);
     }
   };
 
@@ -165,28 +196,64 @@ export default function UploadPage() {
     setPendingFiles(prev => prev.map((pf, i) => i === index ? { ...pf, detectedType: type } : pf));
   };
 
-  const handleDelete = async (type: DataType) => {
-    await clearDataByType(type);
-    const updated = await getUploadedFiles();
-    setFiles(updated);
-    await refreshCounts();
-    toast.success(`${typeLabel(type)} berhasil dihapus`);
+  const handleDeleteFile = async (fileId: string, type: string, period: string) => {
+    try {
+      await deleteUploadedFile(fileId, type, period);
+      const updated = await getUploadedFiles();
+      setFiles(updated);
+      await refreshCounts();
+      toast.success('Data berhasil dihapus');
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal menghapus data');
+    }
   };
+
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+
+  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <PageHeader title="Upload Data" description="Upload file Excel penjualan (Sales) dan stok (SOH Jakarta & Surabaya)">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="gap-1.5" 
-          onClick={handleRefresh}
-          disabled={refreshing || uploading}
-        >
-          <RefreshCcw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
-          {refreshing ? 'Sinkronisasi...' : 'Terapkan Pengaturan'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <select 
+            value={selectedMonth} 
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            className="text-sm bg-background border rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-primary outline-none"
+          >
+            {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+          </select>
+          <select 
+            value={selectedYear} 
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="text-sm bg-background border rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-primary outline-none mr-2"
+          >
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-1.5" 
+            onClick={handleRefresh}
+            disabled={refreshing || uploading}
+          >
+            <RefreshCcw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
+            {refreshing ? 'Sinkronisasi...' : 'Terapkan Pengaturan'}
+          </Button>
+        </div>
       </PageHeader>
+
+      <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-start gap-3">
+        <AlertCircle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <p className="font-semibold text-primary">Periode Aktif: {months[selectedMonth]} {selectedYear}</p>
+          <p className="text-muted-foreground mt-0.5">Semua data yang diupload akan dikategorikan ke dalam periode ini. Pastikan periode sudah benar sebelum mengupload.</p>
+        </div>
+      </div>
 
       {/* Drop zone */}
       <div
@@ -211,15 +278,80 @@ export default function UploadPage() {
           {uploading ? 'Memproses...' : 'Drag & drop file Excel atau klik untuk browse'}
         </p>
         <p className="text-xs text-muted-foreground mt-1">
-          Pilih 1 atau lebih file Excel, lalu konfirmasi tipe data sebelum upload
+          Pilih 1 atau lebih file Excel untuk periode {months[selectedMonth]} {selectedYear}
         </p>
       </div>
 
-      {/* Status */}
+      {/* Status for Current Period */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <DataCard title={typeLabel('sales')} hasData={hasSales} file={files.find(f => f.type === 'sales')} recordCount={salesCount} onDelete={() => handleDelete('sales')} />
-        <DataCard title={typeLabel('soh-jkt')} hasData={hasSohJkt} file={files.find(f => f.type === 'soh-jkt')} recordCount={sohJktCount} onDelete={() => handleDelete('soh-jkt')} />
-        <DataCard title={typeLabel('soh-sby')} hasData={hasSohSby} file={files.find(f => f.type === 'soh-sby')} recordCount={sohSbyCount} onDelete={() => handleDelete('soh-sby')} />
+        <DataCard title={typeLabel('sales')} hasData={hasSales} file={files.find(f => f.type === 'sales' && f.period === currentPeriod)} recordCount={salesCount} />
+        <DataCard title={typeLabel('soh-jkt')} hasData={hasSohJkt} file={files.find(f => f.type === 'soh-jkt' && f.period === currentPeriod)} recordCount={sohJktCount} />
+        <DataCard title={typeLabel('soh-sby')} hasData={hasSohSby} file={files.find(f => f.type === 'soh-sby' && f.period === currentPeriod)} recordCount={sohSbyCount} />
+      </div>
+
+      {/* Upload History Table */}
+      <div className="bg-card rounded-xl border shadow-card overflow-hidden">
+        <div className="p-4 border-b border-border bg-muted/30">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <FileSpreadsheet className="w-4 h-4 text-primary" />
+            Riwayat Upload Data
+          </h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/50 border-b border-border text-left">
+                <th className="px-4 py-3 font-medium text-muted-foreground">Periode</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground">Nama File</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground">Tipe</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground text-right">Records</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground">Tgl Upload</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {files.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground italic">
+                    Belum ada riwayat upload.
+                  </td>
+                </tr>
+              ) : (
+                files.map((file) => {
+                  const [year, month] = file.period.split('-');
+                  const periodLabel = `${months[parseInt(month) - 1]} ${year}`;
+                  return (
+                    <tr key={file.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3 font-medium">{periodLabel}</td>
+                      <td className="px-4 py-3 max-w-[200px] truncate" title={file.name}>{file.name}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                          file.type === 'sales' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {file.type === 'sales' ? 'Sales' : 'SOH ' + (file.type === 'soh-jkt' ? 'JKT' : 'SBY')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-xs">{file.recordCount.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
+                        {new Date(file.uploadedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleDeleteFile(file.id, file.type, file.period)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Type Selection Dialog */}
@@ -283,12 +415,11 @@ export default function UploadPage() {
   );
 }
 
-function DataCard({ title, hasData, file, recordCount, onDelete }: {
+function DataCard({ title, hasData, file, recordCount }: {
   title: string;
   hasData: boolean;
   file?: UploadedFile;
   recordCount: number;
-  onDelete: () => void;
 }) {
   return (
     <motion.div
@@ -316,15 +447,6 @@ function DataCard({ title, hasData, file, recordCount, onDelete }: {
             )}
           </div>
         </div>
-        <AnimatePresence>
-          {hasData && (
-            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-              <Button variant="ghost" size="sm" onClick={onDelete} className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </motion.div>
   );

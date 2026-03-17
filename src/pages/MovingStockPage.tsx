@@ -26,8 +26,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { getSOHData, getSalesData, getSkuSummaries, formatCurrency } from '@/lib/dataStore';
-import type { SkuSummary } from '@/lib/types';
+import { getSOHData, getSalesData, getSkuSummaries, formatCurrency, getUploadedFiles } from '@/lib/dataStore';
+import type { SkuSummary, UploadedFile } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export default function MovingStockPage() {
@@ -35,12 +35,27 @@ export default function MovingStockPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSku, setSelectedSku] = useState<SkuSummary | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('');
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 
   useEffect(() => {
     async function loadData() {
+      setLoading(true);
       try {
-        const [soh, sales] = await Promise.all([getSOHData(), getSalesData()]);
-        const summaries = await getSkuSummaries(sales, soh);
+        const files = await getUploadedFiles();
+        setUploadedFiles(files);
+
+        let period = selectedPeriod;
+        if (!period && files.length > 0) {
+          period = files[0].period;
+          setSelectedPeriod(period);
+        }
+
+        const [soh, sales] = await Promise.all([
+          getSOHData(period),
+          getSalesData(period)
+        ]);
+        const summaries = getSkuSummaries(sales, soh);
         setSkuSummaries(summaries);
       } catch (err) {
         console.error(err);
@@ -49,7 +64,17 @@ export default function MovingStockPage() {
       }
     }
     loadData();
-  }, []);
+  }, [selectedPeriod]);
+
+  const availablePeriods = useMemo(() => {
+    const periods = uploadedFiles.map(f => f.period);
+    return Array.from(new Set(periods)).sort((a, b) => b.localeCompare(a));
+  }, [uploadedFiles]);
+
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
 
   const filteredData = useMemo(() => {
     return skuSummaries.filter(s => 
@@ -214,15 +239,6 @@ export default function MovingStockPage() {
                 Daftar SKU per Kriteria
               </CardTitle>
               <CardDescription>Pilih tab untuk melihat detail SKU masing-masing kriteria</CardDescription>
-            </div>
-            <div className="relative w-full md:w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input 
-                placeholder="Cari SKU atau Nama Barang..." 
-                className="pl-9 bg-background/50 border-border/50 focus:ring-accent/20"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
             </div>
           </div>
         </CardHeader>

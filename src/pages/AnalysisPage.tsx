@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   Activity, AlertTriangle, TrendingDown, Package, BarChart3,
   ChevronDown, ChevronUp, Search, Gauge, ShieldCheck, PackageX,
-  LayoutGrid
+  LayoutGrid, Calendar, TrendingUp, ShieldAlert, ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -11,10 +11,10 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/PageHeader';
 import { StatCard } from '@/components/StatCard';
-import { getSOHData, getSalesData, getSkuSummaries, formatCurrency, formatNumber } from '@/lib/dataStore';
+import { getSOHData, getSalesData, getSkuSummaries, formatCurrency, formatNumber, getUploadedFiles } from '@/lib/dataStore';
 import { filterByActiveStores, getOrderSettings } from '@/lib/orderSettings';
 import { calculateStoreOrders } from '@/lib/storeOrders';
-import type { SOHRecord, StoreOrderSummary, SkuSummary } from '@/lib/types';
+import type { SOHRecord, StoreOrderSummary, SkuSummary, SalesRecord, UploadedFile } from '@/lib/types';
 import {
   Dialog,
   DialogContent,
@@ -215,35 +215,75 @@ function efficiencyBg(val: number): string {
 
 /* ─── Component ─── */
 export default function AnalysisPage() {
-  const [soh, setSoh] = useState<SOHRecord[]>([]);
-  const [orderSummaries, setOrderSummaries] = useState<StoreOrderSummary[]>([]);
+  const [salesData, setSalesData] = useState<SalesRecord[]>([]);
+  const [sohData, setSohData] = useState<SOHRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [expandedStore, setExpandedStore] = useState<string | null>(null);
-  const [skuSummaries, setSkuSummaries] = useState<SkuSummary[]>([]);
   const [selectedSku, setSelectedSku] = useState<SkuSummary | null>(null);
   const [isWsExpanded, setIsWsExpanded] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('');
+
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
 
   useEffect(() => {
-    Promise.all([getSOHData(), getSalesData()]).then(([sohData, salesData]) => {
-      const settings = getOrderSettings();
-      const filteredSoh = filterByActiveStores(sohData, settings);
-      setSoh(filteredSoh);
-      setOrderSummaries(calculateStoreOrders(filteredSoh, settings));
-      setSkuSummaries(getSkuSummaries(salesData, filteredSoh));
-      setLoading(false);
-    });
-  }, []);
+    async function loadData() {
+      setLoading(true);
+      try {
+        const files = await getUploadedFiles();
+        setUploadedFiles(files);
+        
+        // Default to latest period if none selected
+        let period = selectedPeriod;
+        if (!period && files.length > 0) {
+          period = files[0].period;
+          setSelectedPeriod(period);
+        }
 
-  const health = useMemo(() => analyzeHealth(soh, orderSummaries), [soh, orderSummaries]);
+        const [sales, soh] = await Promise.all([
+          getSalesData(period),
+          getSOHData(period)
+        ]);
+        setSalesData(sales);
+        setSohData(soh);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [selectedPeriod]);
+
+  const settings = useMemo(() => getOrderSettings(), []);
+  
+  const filteredSoh = useMemo(() => 
+    filterByActiveStores(sohData, settings), 
+  [sohData, settings]);
+
+  const orderSummaries = useMemo(() => 
+    calculateStoreOrders(filteredSoh, settings),
+  [filteredSoh, settings]);
+
+  const skuSummaries = useMemo(() => 
+    getSkuSummaries(salesData, filteredSoh),
+  [salesData, filteredSoh]);
+
+  const health = useMemo(() => 
+    analyzeHealth(filteredSoh, orderSummaries),
+  [filteredSoh, orderSummaries]);
 
   const filteredStores = useMemo(() => {
-    if (!search) return health.stores;
-    const q = search.toLowerCase();
+    if (!searchTerm) return health.stores;
+    const q = searchTerm.toLowerCase();
     return health.stores.filter(s =>
       s.namaToko.toLowerCase().includes(q) || s.kodeToko.toLowerCase().includes(q)
     );
-  }, [health.stores, search]);
+  }, [health.stores, searchTerm]);
 
   const wsSkus = useMemo(() => {
     return skuSummaries.filter(s => {
@@ -252,9 +292,14 @@ export default function AnalysisPage() {
     });
   }, [skuSummaries]);
 
+  const availablePeriods = useMemo(() => {
+    const periods = uploadedFiles.map(f => f.period);
+    return Array.from(new Set(periods)).sort((a, b) => b.localeCompare(a));
+  }, [uploadedFiles]);
+
   if (loading) return <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground text-sm">Memuat data...</div>;
 
-  if (soh.length === 0) {
+  if (sohData.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
         <div className="p-4 rounded-2xl bg-accent/10 mb-4"><Activity className="w-10 h-10 text-accent" /></div>
@@ -266,7 +311,34 @@ export default function AnalysisPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <PageHeader title="Analisa Inventory" description="Kesehatan inventory nasional & per toko" />
+      <PageHeader title="Analisa Inventory" description="Kesehatan inventory nasional & per toko">
+        <div className="flex items-center gap-2">
+          {availablePeriods.length > 0 && (
+            <div className="flex items-center gap-2 mr-2">
+              <Calendar className="w-4 h-4 text-muted-foreground" />
+              <select 
+                value={selectedPeriod} 
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                className="text-sm bg-background border rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-primary outline-none"
+              >
+                {availablePeriods.map(p => {
+                  const [year, month] = p.split('-');
+                  return <option key={p} value={p}>{months[parseInt(month) - 1]} {year}</option>;
+                })}
+              </select>
+            </div>
+          )}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Cari SKU atau Nama Produk..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 w-64 h-9 text-sm"
+            />
+          </div>
+        </div>
+      </PageHeader>
 
       {/* ─── National Summary Cards ─── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -429,7 +501,7 @@ export default function AnalysisPage() {
         <h3 className="text-sm font-semibold text-foreground">Kesehatan per Toko</h3>
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Cari toko..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Cari toko..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
         </div>
       </div>
 

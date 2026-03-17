@@ -18,6 +18,7 @@ export interface SalesRecord {
   hargaJualNormal: number;
   disc: number;
   subtotal: number;
+  period: string; // YYYY-MM
 }
 
 export interface SOHRecord {
@@ -40,6 +41,8 @@ export interface SOHRecord {
   avgSalesM2: number; // Avg sales 2 months ago
   avgSalesM1: number; // Avg sales last month
   sales: number; // Current sales (column V)
+  period: string; // YYYY-MM
+  region: 'jkt' | 'sby';
 }
 
 export interface SkuSummary {
@@ -57,6 +60,7 @@ export interface SkuSummary {
   storeDetails: SkuStoreDetail[];
   movingClass: 'very_fast' | 'fast' | 'medium' | 'slow' | 'dead'; // Stock classification
   totalSoh: number;
+  period: string;
 }
 
 export interface SkuStoreDetail {
@@ -100,6 +104,24 @@ export interface UploadedFile {
   type: 'sales' | 'soh-jkt' | 'soh-sby';
   uploadedAt: string;
   recordCount: number;
+  period: string; // YYYY-MM
+}
+
+export interface HistoricalSnapshot {
+  id: string;
+  period: string; // YYYY-MM
+  totalRevenue: number;
+  totalStockValue: number;
+  stockEfficiency: number;
+  ito: number; // Inventory Turnover
+  movingCounts: {
+    veryFast: number;
+    fast: number;
+    medium: number;
+    slow: number;
+    dead: number;
+  };
+  createdAt: string;
 }
 
 export interface SupplierLeadTime {

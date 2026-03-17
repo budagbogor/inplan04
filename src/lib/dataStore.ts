@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { parse, format, isValid } from 'date-fns';
 import { supabase } from './supabase';
-import type { SalesRecord, SOHRecord, UploadedFile } from './types';
+import { SalesRecord, SOHRecord, SkuSummary, UploadedFile, HistoricalSnapshot } from './types';
 
 // In-memory cache
 let salesCache: SalesRecord[] | null = null;
@@ -18,7 +18,7 @@ export function invalidateCache() {
 
 type HeaderAliasMap<T extends string> = Record<T, string[]>;
 
-const SALES_COLUMN_ALIASES: HeaderAliasMap<keyof SalesRecord> = {
+const SALES_COLUMN_ALIASES: HeaderAliasMap<Exclude<keyof SalesRecord, 'period'>> = {
   tanggal: ['tanggal', 'date'],
   namaCabang: ['nama cabang', 'cabang', 'branch'],
   kodeToko: ['kode toko', 'kode_toko', 'store code'],
@@ -38,7 +38,7 @@ const SALES_COLUMN_ALIASES: HeaderAliasMap<keyof SalesRecord> = {
   subtotal: ['subtotal', 'nett sales', 'net sales', 'amount'],
 };
 
-const SOH_COLUMN_ALIASES: HeaderAliasMap<keyof SOHRecord> = {
+const SOH_COLUMN_ALIASES: HeaderAliasMap<Exclude<keyof SOHRecord, 'period' | 'region'>> = {
   kodeToko: ['kode toko', 'kode_toko', 'store code'],
   namaToko: ['nama toko', 'nama_toko', 'store name', 'nama toko / dc', 'nama toko dc'],
   namaCabang: ['nama cabang', 'cabang', 'branch'],
@@ -237,6 +237,7 @@ export async function parseSalesExcel(file: File): Promise<SalesRecord[]> {
       hargaJualNormal: parseNum(getCell(row, indexes.hargaJualNormal)),
       disc: parseNum(getCell(row, indexes.disc)),
       subtotal: parseNum(getCell(row, indexes.subtotal)),
+      period: '', // Will be set during save
     }))
     .filter((record) => record.kodeProduk && record.qty > 0);
 
@@ -283,6 +284,8 @@ export async function parseSOHExcel(file: File): Promise<SOHRecord[]> {
       avgSalesM2: parseNum(getCell(row, indexes.avgSalesM2)),
       avgSalesM1: parseNum(getCell(row, indexes.avgSalesM1)),
       sales: parseNum(getCell(row, indexes.sales)),
+      period: '', // Will be set during save
+      region: 'jkt' as 'jkt' | 'sby', // Will be set during save
     }))
     .filter((record) => record.kodeProduk);
 
@@ -318,7 +321,7 @@ function parseNum(val: unknown): number {
 // Supabase Integration
 // -------------------------------------------------------------------------
 
-export async function saveSalesData(records: SalesRecord[]) {
+export async function saveSalesData(records: SalesRecord[], period: string) {
   // Map camelCase to snake_case for Supabase
   const { error } = await supabase
     .from('sales')
@@ -340,17 +343,31 @@ export async function saveSalesData(records: SalesRecord[]) {
       harga_jual_normal: r.hargaJualNormal,
       disc: r.disc,
       subtotal: r.subtotal,
+      period,
     })));
 
   if (error) throw error;
   invalidateCache();
 }
 
-export async function getSalesData(): Promise<SalesRecord[]> {
-  if (salesCache) return salesCache;
+export async function getSalesData(period?: string): Promise<SalesRecord[]> {
+  // If period not provided, get the latest one from uploaded_files
+  let targetPeriod = period;
+  if (!targetPeriod) {
+    const files = await getUploadedFiles();
+    const salesFiles = files.filter(f => f.type === 'sales');
+    if (salesFiles.length > 0) {
+      targetPeriod = salesFiles[0].period;
+    }
+  }
+
+  if (!targetPeriod) return [];
+  
+  // Cache check (only for latest/current)
+  if (!period && salesCache) return salesCache;
 
   // Fetch all records from Supabase in parallel chunks
-  const totalCount = await getSalesCount();
+  const totalCount = await getSalesCount(targetPeriod);
   const pageSize = 1000;
   const numChunks = Math.ceil(totalCount / pageSize);
   
@@ -363,6 +380,7 @@ export async function getSalesData(): Promise<SalesRecord[]> {
       return supabase
         .from('sales')
         .select('*')
+        .eq('period', targetPeriod)
         .order('tanggal', { ascending: false })
         .range(from, to)
         .then(({ data, error }) => {
@@ -374,7 +392,7 @@ export async function getSalesData(): Promise<SalesRecord[]> {
 
   const allData = chunks.flat();
 
-  salesCache = allData.map(r => ({
+  const records = allData.map(r => ({
     tanggal: r.tanggal,
     namaCabang: r.nama_cabang,
     kodeToko: r.kode_toko,
@@ -392,15 +410,20 @@ export async function getSalesData(): Promise<SalesRecord[]> {
     hargaJualNormal: Number(r.harga_jual_normal),
     disc: Number(r.disc),
     subtotal: Number(r.subtotal),
+    period: r.period,
   }));
 
-  return salesCache;
+  if (!period) salesCache = records;
+  return records;
 }
 
-export async function saveSOHDataByRegion(records: SOHRecord[], region: 'jkt' | 'sby') {
+export async function saveSOHDataByRegion(records: SOHRecord[], region: 'jkt' | 'sby', period: string) {
+  // Update records with region and period for internal consistency if needed
+  const normalizedRecords = records.map(r => ({ ...r, region, period }));
+  
   const { error } = await supabase
     .from('soh')
-    .upsert(records.map(r => ({
+    .upsert(normalizedRecords.map(r => ({
       kode_toko: r.kodeToko,
       nama_toko: r.namaToko,
       nama_cabang: r.namaCabang,
@@ -421,18 +444,30 @@ export async function saveSOHDataByRegion(records: SOHRecord[], region: 'jkt' | 
       avg_sales_m1: r.avgSalesM1,
       sales: r.sales,
       region,
+      period,
     })));
 
   if (error) throw error;
   invalidateCache();
 }
 
-export async function getSOHDataByRegion(region: 'jkt' | 'sby'): Promise<SOHRecord[]> {
+export async function getSOHDataByRegion(region: 'jkt' | 'sby', period?: string): Promise<SOHRecord[]> {
+  let targetPeriod = period;
+  if (!targetPeriod) {
+    const files = await getUploadedFiles();
+    const sohFiles = files.filter(f => f.type === `soh-${region}`);
+    if (sohFiles.length > 0) {
+      targetPeriod = sohFiles[0].period;
+    }
+  }
+
+  if (!targetPeriod) return [];
+
   const cache = region === 'jkt' ? sohJktCache : sohSbyCache;
-  if (cache) return cache;
+  if (!period && cache) return cache;
 
   // Fetch all records from Supabase in parallel chunks
-  const totalCount = await getSOHCountByRegion(region);
+  const totalCount = await getSOHCountByRegion(region, targetPeriod);
   const pageSize = 1000;
   const numChunks = Math.ceil(totalCount / pageSize);
 
@@ -446,6 +481,7 @@ export async function getSOHDataByRegion(region: 'jkt' | 'sby'): Promise<SOHReco
         .from('soh')
         .select('*')
         .eq('region', region)
+        .eq('period', targetPeriod)
         .range(from, to)
         .then(({ data, error }) => {
           if (error) throw error;
@@ -476,24 +512,28 @@ export async function getSOHDataByRegion(region: 'jkt' | 'sby'): Promise<SOHReco
     avgSalesM2: Number(r.avg_sales_m2),
     avgSalesM1: Number(r.avg_sales_m1),
     sales: Number(r.sales),
+    period: r.period,
+    region: r.region as 'jkt' | 'sby',
   }));
 
-  if (region === 'jkt') sohJktCache = mapped;
-  else sohSbyCache = mapped;
+  if (!period) {
+    if (region === 'jkt') sohJktCache = mapped;
+    else sohSbyCache = mapped;
+  }
 
   return mapped;
 }
 
-/** @deprecated Use saveSOHDataByRegion instead */
+/** @deprecated Use saveSOHDataByRegion with period instead */
 export async function saveSOHData(records: SOHRecord[]) {
-  await saveSOHDataByRegion(records, 'jkt');
+  await saveSOHDataByRegion(records, 'jkt', 'latest');
 }
 
-/** Returns merged SOH data from both JKT and SBY */
-export async function getSOHData(): Promise<SOHRecord[]> {
+/** Returns merged SOH data from both JKT and SBY for a period */
+export async function getSOHData(period?: string): Promise<SOHRecord[]> {
   const [jkt, sby] = await Promise.all([
-    getSOHDataByRegion('jkt'),
-    getSOHDataByRegion('sby'),
+    getSOHDataByRegion('jkt', period),
+    getSOHDataByRegion('sby', period),
   ]);
   return [...jkt, ...sby];
 }
@@ -507,6 +547,7 @@ export async function saveUploadedFiles(files: UploadedFile[]) {
       type: f.type,
       uploaded_at: f.uploadedAt,
       record_count: f.recordCount,
+      period: f.period,
     })));
 
   if (error) throw error;
@@ -529,52 +570,74 @@ export async function getUploadedFiles(): Promise<UploadedFile[]> {
     type: f.type as any,
     uploadedAt: f.uploaded_at,
     recordCount: Number(f.record_count),
+    period: f.period,
   }));
 
   return uploadedFilesCache;
 }
 
-export async function getSalesCount(): Promise<number> {
-  const { count, error } = await supabase
-    .from('sales')
-    .select('*', { count: 'exact', head: true });
+export async function getSalesCount(period?: string): Promise<number> {
+  let query = supabase.from('sales').select('*', { count: 'exact', head: true });
+  if (period) query = query.eq('period', period);
+  
+  const { count, error } = await query;
 
   if (error) throw error;
   return count || 0;
 }
 
-export async function getSOHCountByRegion(region: 'jkt' | 'sby'): Promise<number> {
-  const { count, error } = await supabase
-    .from('soh')
-    .select('*', { count: 'exact', head: true })
-    .eq('region', region);
+export async function getSOHCountByRegion(region: 'jkt' | 'sby', period?: string): Promise<number> {
+  let query = supabase.from('soh').select('*', { count: 'exact', head: true }).eq('region', region);
+  if (period) query = query.eq('period', period);
+
+  const { count, error } = await query;
 
   if (error) throw error;
   return count || 0;
 }
 
-export async function getSOHCount(): Promise<number> {
+export async function getSOHCount(period?: string): Promise<number> {
   const [jkt, sby] = await Promise.all([
-    getSOHCountByRegion('jkt'),
-    getSOHCountByRegion('sby'),
+    getSOHCountByRegion('jkt', period),
+    getSOHCountByRegion('sby', period),
   ]);
   return jkt + sby;
 }
 
-export async function clearDataByType(type: 'sales' | 'soh-jkt' | 'soh-sby') {
+export async function deleteUploadedFile(fileId: string, type: string, period: string) {
+  // Delete from uploaded_files
+  const { error: err1 } = await supabase.from('uploaded_files').delete().eq('id', fileId);
+  if (err1) throw err1;
+
+  // Delete records from sales or soh for that period
   if (type === 'sales') {
-    const { error: err1 } = await supabase.from('sales').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    if (err1) throw err1;
-  } else if (type === 'soh-jkt') {
-    const { error: err2 } = await supabase.from('soh').delete().eq('region', 'jkt');
+    const { error: err2 } = await supabase.from('sales').delete().eq('period', period);
     if (err2) throw err2;
-  } else {
-    const { error: err3 } = await supabase.from('soh').delete().eq('region', 'sby');
+  } else if (type === 'soh-jkt') {
+    const { error: err3 } = await supabase.from('soh').delete().eq('region', 'jkt').eq('period', period);
     if (err3) throw err3;
+  } else if (type === 'soh-sby') {
+    const { error: err4 } = await supabase.from('soh').delete().eq('region', 'sby').eq('period', period);
+    if (err4) throw err4;
   }
-  
-  const { error: err4 } = await supabase.from('uploaded_files').delete().eq('type', type);
-  if (err4) throw err4;
+
+  invalidateCache();
+}
+
+export async function clearDataByType(type: 'sales' | 'soh-jkt' | 'soh-sby') {
+  const { error: err1 } = await supabase.from('uploaded_files').delete().eq('type', type);
+  if (err1) throw err1;
+
+  if (type === 'sales') {
+    const { error: err2 } = await supabase.from('sales').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    if (err2) throw err2;
+  } else if (type === 'soh-jkt') {
+    const { error: err3 } = await supabase.from('soh').delete().eq('region', 'jkt');
+    if (err3) throw err3;
+  } else {
+    const { error: err4 } = await supabase.from('soh').delete().eq('region', 'sby');
+    if (err4) throw err4;
+  }
 
   invalidateCache();
 }
@@ -739,6 +802,7 @@ export function getSkuSummaries(sales: SalesRecord[], soh?: SOHRecord[]): import
         movingClass: 'dead',
         totalSoh: 0,
         stores: new Set(),
+        period: sales[0]?.period || '',
       });
     }
     const entry = map.get(s.kodeProduk)!;
@@ -831,4 +895,101 @@ export function formatCurrency(val: number): string {
 
 export function formatNumber(val: number): string {
   return new Intl.NumberFormat('id-ID').format(val);
+}
+
+// Historical Snapshot Functions
+export async function getHistoricalSnapshots(): Promise<HistoricalSnapshot[]> {
+  const { data, error } = await supabase
+    .from('historical_snapshots')
+    .select('*')
+    .order('period', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching snapshots:', error);
+    return [];
+  }
+
+  return (data || []).map(s => ({
+    id: s.id,
+    period: s.period,
+    totalRevenue: Number(s.total_revenue),
+    totalStockValue: Number(s.total_stock_value),
+    stockEfficiency: Number(s.stock_efficiency),
+    ito: Number(s.ito),
+    movingCounts: s.moving_counts,
+    createdAt: s.created_at,
+  }));
+}
+
+export async function saveHistoricalSnapshot(snapshot: Omit<HistoricalSnapshot, 'id' | 'createdAt'>) {
+  const { error } = await supabase
+    .from('historical_snapshots')
+    .upsert({
+      period: snapshot.period,
+      total_revenue: snapshot.totalRevenue,
+      total_stock_value: snapshot.totalStockValue,
+      stock_efficiency: snapshot.stockEfficiency,
+      ito: snapshot.ito,
+      moving_counts: snapshot.movingCounts,
+    }, { onConflict: 'period' });
+
+  if (error) throw error;
+}
+
+export async function generateMonthlySnapshot(period: string): Promise<Omit<HistoricalSnapshot, 'id' | 'createdAt'>> {
+  const [sales, soh] = await Promise.all([
+    getSalesData(period),
+    getSOHData(period)
+  ]);
+
+  if (sales.length === 0 || soh.length === 0) {
+    throw new Error(`Data tidak lengkap untuk periode ${period}`);
+  }
+
+  // Find previous period for ITO calculation
+  const [year, month] = period.split('-').map(Number);
+  const prevDate = new Date(year, month - 2, 1);
+  const prevPeriod = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+  
+  // Try to get previous SOH for Average Inventory
+  const prevSoh = await getSOHData(prevPeriod).catch(() => [] as SOHRecord[]);
+
+  // 1. Total COGS (HPP * Qty)
+  const totalCogs = sales.reduce((sum, r) => sum + (r.qty * (r.hpp || 0)), 0);
+  const totalRevenue = sales.reduce((sum, r) => sum + r.subtotal, 0);
+
+  // 2. Average Inventory Value
+  const endingStockValue = soh.reduce((sum, r) => sum + (r.valueStock || 0), 0);
+  const beginningStockValue = prevSoh.length > 0 
+    ? prevSoh.reduce((sum, r) => sum + (r.valueStock || 0), 0)
+    : endingStockValue; 
+
+  const avgStockValue = (beginningStockValue + endingStockValue) / 2;
+
+  // 3. ITO = COGS / Avg Stock
+  const ito = avgStockValue > 0 ? totalCogs / avgStockValue : 0;
+
+  // 4. Moving Counts
+  const summaries = getSkuSummaries(sales, soh);
+  const movingCounts = {
+    veryFast: summaries.filter(s => s.movingClass === 'very_fast').length,
+    fast: summaries.filter(s => s.movingClass === 'fast').length,
+    medium: summaries.filter(s => s.movingClass === 'medium').length,
+    slow: summaries.filter(s => s.movingClass === 'slow').length,
+    dead: summaries.filter(s => s.movingClass === 'dead').length,
+  };
+
+  // 5. Stock Efficiency
+  const totalSkus = summaries.length;
+  const overstockCount = summaries.filter(s => s.movingClass === 'dead' || s.movingClass === 'slow').length;
+  const stockEfficiency = totalSkus > 0 ? ((totalSkus - overstockCount) / totalSkus) * 100 : 0;
+
+  return {
+    period,
+    totalRevenue,
+    totalStockValue: endingStockValue,
+    stockEfficiency,
+    ito,
+    movingCounts,
+  };
 }
