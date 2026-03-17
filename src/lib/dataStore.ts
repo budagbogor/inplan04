@@ -928,6 +928,7 @@ export async function getHistoricalSnapshots(): Promise<HistoricalSnapshot[]> {
     stockEfficiency: Number(s.stock_efficiency),
     ito: Number(s.ito),
     movingCounts: s.moving_counts,
+    storeData: s.store_data || {},
     createdAt: s.created_at,
   }));
 }
@@ -942,6 +943,7 @@ export async function saveHistoricalSnapshot(snapshot: Omit<HistoricalSnapshot, 
       stock_efficiency: snapshot.stockEfficiency,
       ito: snapshot.ito,
       moving_counts: snapshot.movingCounts,
+      store_data: snapshot.storeData || {},
     }, { onConflict: 'period' });
 
   if (error) throw error;
@@ -995,6 +997,50 @@ export async function generateMonthlySnapshot(period: string): Promise<Omit<Hist
   const overstockCount = summaries.filter(s => s.movingClass === 'dead' || s.movingClass === 'slow').length;
   const stockEfficiency = totalSkus > 0 ? ((totalSkus - overstockCount) / totalSkus) * 100 : 0;
 
+  // 6. Calculate Per-Store Metrics
+  const storeData: Omit<HistoricalSnapshot, 'id' | 'createdAt' | 'period'>['storeData'] = {};
+  
+  // Get all unique store codes
+  const storeCodes = Array.from(new Set([...sales.map(s => s.kodeToko), ...soh.map(s => s.kodeToko)]));
+  
+  for (const store of storeCodes) {
+    const storeSales = sales.filter(s => s.kodeToko === store);
+    const storeSoh = soh.filter(s => s.kodeToko === store);
+    const storePrevSoh = prevSoh.filter(s => s.kodeToko === store);
+
+    const sTotalCogs = storeSales.reduce((sum, r) => sum + (r.qty * (r.hpp || 0)), 0);
+    const sTotalRev = storeSales.reduce((sum, r) => sum + r.subtotal, 0);
+    
+    const sEndingValue = storeSoh.reduce((sum, r) => sum + (r.valueStock || 0), 0);
+    const sBeginningValue = storePrevSoh.length > 0
+      ? storePrevSoh.reduce((sum, r) => sum + (r.valueStock || 0), 0)
+      : sEndingValue;
+      
+    const sAvgStock = (sBeginningValue + sEndingValue) / 2;
+    const sIto = sAvgStock > 0 ? sTotalCogs / sAvgStock : 0;
+
+    const sSummaries = getSkuSummaries(storeSales, storeSoh);
+    const sMovingCounts = {
+      veryFast: sSummaries.filter(s => s.movingClass === 'very_fast').length,
+      fast: sSummaries.filter(s => s.movingClass === 'fast').length,
+      medium: sSummaries.filter(s => s.movingClass === 'medium').length,
+      slow: sSummaries.filter(s => s.movingClass === 'slow').length,
+      dead: sSummaries.filter(s => s.movingClass === 'dead').length,
+    };
+
+    const sTotalSkus = sSummaries.length;
+    const sOverstock = sSummaries.filter(s => s.movingClass === 'dead' || s.movingClass === 'slow').length;
+    const sEfficiency = sTotalSkus > 0 ? ((sTotalSkus - sOverstock) / sTotalSkus) * 100 : 0;
+
+    storeData[store] = {
+      totalRevenue: sTotalRev,
+      totalStockValue: sEndingValue,
+      stockEfficiency: sEfficiency,
+      ito: sIto,
+      movingCounts: sMovingCounts,
+    };
+  }
+
   return {
     period,
     totalRevenue,
@@ -1002,5 +1048,6 @@ export async function generateMonthlySnapshot(period: string): Promise<Omit<Hist
     stockEfficiency,
     ito,
     movingCounts,
+    storeData,
   };
 }

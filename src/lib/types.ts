@@ -121,6 +121,19 @@ export interface HistoricalSnapshot {
     slow: number;
     dead: number;
   };
+  storeData?: Record<string, {
+    totalRevenue: number;
+    totalStockValue: number;
+    stockEfficiency: number;
+    ito: number;
+    movingCounts: {
+      veryFast: number;
+      fast: number;
+      medium: number;
+      slow: number;
+      dead: number;
+    };
+  }>;
   createdAt: string;
 }
 

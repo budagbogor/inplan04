@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS historical_snapshots (
     stock_efficiency numeric NOT NULL DEFAULT 0,
     ito numeric NOT NULL DEFAULT 0,
     moving_counts jsonb NOT NULL DEFAULT '{}'::jsonb,
+    store_data jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_at timestamptz DEFAULT now()
 );
 

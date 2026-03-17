@@ -5,11 +5,12 @@ import {
 } from 'recharts';
 import { 
   TrendingUp, History, Calendar, Download, RefreshCcw, 
-  ArrowUpRight, ArrowDownRight, Package, Gauge, Activity
+  ArrowUpRight, ArrowDownRight, Package, Gauge, Activity, Info
 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatCard } from '@/components/StatCard';
 import { 
   getHistoricalSnapshots, 
@@ -28,6 +29,7 @@ export default function HistoricalPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
+  const [selectedStore, setSelectedStore] = useState<string>('all');
 
   const months = useMemo(() => [
     'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
@@ -73,27 +75,49 @@ export default function HistoricalPage() {
     }
   };
 
+  const availableStores = useMemo(() => {
+    const stores = new Set<string>();
+    snapshots.forEach(s => {
+      if (s.storeData) {
+        Object.keys(s.storeData).forEach(k => stores.add(k));
+      }
+    });
+    return Array.from(stores).sort();
+  }, [snapshots]);
+
   const chartData = useMemo(() => {
     return snapshots.map(s => {
       const [year, month] = s.period.split('-');
+      
+      const metrics = selectedStore !== 'all' && s.storeData && s.storeData[selectedStore] 
+        ? s.storeData[selectedStore] 
+        : {
+            totalRevenue: s.totalRevenue,
+            totalStockValue: s.totalStockValue,
+            ito: s.ito,
+            stockEfficiency: s.stockEfficiency,
+            movingCounts: s.movingCounts
+          };
+
       return {
         ...s,
         name: `${months[parseInt(month) - 1]} ${year.slice(2)}`,
-        revenue: s.totalRevenue,
-        stockValue: s.totalStockValue,
-        ito: Math.round(s.ito * 100) / 100,
-        efficiency: Math.round(s.stockEfficiency * 10) / 10,
-        veryFast: s.movingCounts.veryFast,
-        fast: s.movingCounts.fast,
-        medium: s.movingCounts.medium,
-        slow: s.movingCounts.slow,
-        dead: s.movingCounts.dead,
+        revenue: metrics.totalRevenue,
+        stockValue: metrics.totalStockValue,
+        ito: Math.round(metrics.ito * 100) / 100,
+        efficiency: Math.round(metrics.stockEfficiency * 10) / 10,
+        veryFast: metrics.movingCounts.veryFast,
+        fast: metrics.movingCounts.fast,
+        medium: metrics.movingCounts.medium,
+        slow: metrics.movingCounts.slow,
+        dead: metrics.movingCounts.dead,
+        rawMetrics: metrics, // Store raw metrics for Key Metrics calculation
       };
     });
-  }, [snapshots, months]);
+  }, [snapshots, months, selectedStore]);
 
-  const latest = snapshots[snapshots.length - 1];
-  const previous = snapshots[snapshots.length - 2];
+  const latest = chartData[chartData.length - 1]?.rawMetrics;
+  const previous = chartData[chartData.length - 2]?.rawMetrics;
 
   const getTrend = (curr: number, prev: number) => {
     if (!prev) return 0;
@@ -105,7 +129,18 @@ export default function HistoricalPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Tren Historis" description="Analisis perkembangan performa stok dari waktu ke waktu">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+          <Select value={selectedStore} onValueChange={setSelectedStore}>
+            <SelectTrigger className="w-[160px] h-8 text-xs">
+              <SelectValue placeholder="Semua Toko" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Toko</SelectItem>
+              {availableStores.map(store => (
+                <SelectItem key={store} value={store}>{store}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {availablePeriods.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Buat Snapshot:</span>
@@ -171,18 +206,25 @@ export default function HistoricalPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* ITO & Efficiency Chart */}
-            <Card className="p-6 shadow-card border-none bg-card/50 backdrop-blur-sm">
+            <Card className="p-6 shadow-card border-none bg-card/50 backdrop-blur-sm group relative">
               <h3 className="text-sm font-semibold mb-6 flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-primary" />
                 Tren Finansial & Perputaran (ITO)
+                <div className="group/tooltip relative ml-auto">
+                  <Info className="w-4 h-4 text-muted-foreground cursor-help" />
+                  <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-popover text-popover-foreground text-xs rounded-lg shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50">
+                    <p className="font-semibold mb-1">Inventory Turnover (ITO)</p>
+                    <p className="text-muted-foreground">Mengukur rasio HPP Penjualan dibagi rata-rata nilai persediaan. Makin tinggi angka ITO, makin sehat perputaran stok di gudang.</p>
+                  </div>
+                </div>
               </h3>
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
                     <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="left" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="right" orientation="right" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="left" fontSize={12} tickLine={false} axisLine={false} width={30} />
+                    <YAxis yAxisId="right" orientation="right" fontSize={12} tickLine={false} axisLine={false} width={30} />
                     <Tooltip 
                       contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px' }}
                       itemStyle={{ fontSize: '12px' }}
@@ -243,7 +285,9 @@ export default function HistoricalPage() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
                     <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={12} tickLine={false} axisLine={false} width={80} 
+                      tickFormatter={(val) => `Rp${(val / 1000000).toFixed(0)}M`}
+                    />
                     <Tooltip 
                       formatter={(val: number) => formatCurrency(val)}
                       contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px' }}
