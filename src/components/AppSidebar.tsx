@@ -19,7 +19,8 @@ import {
   History,
   LogOut,
   User as UserIcon,
-  Users
+  Users,
+  PackageSearch
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -39,6 +40,7 @@ const navSections = [
       { to: '/analysis', label: 'Analisa', icon: Activity },
       { to: '/moving-stock', label: 'Moving Stock', icon: BarChart3 },
       { to: '/historical', label: 'Tren Historis', icon: History },
+      { to: '/product-search', label: 'Search Produk', icon: PackageSearch },
       { to: '/average-demand', label: 'Avg Demand', icon: TrendingUp },
     ],
   },

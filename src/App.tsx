@@ -18,6 +18,7 @@ import GuidePage from "./pages/GuidePage";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/LoginPage";
 import UserManagementPage from "./pages/UserManagementPage";
+import ProductSearchPage from "./pages/ProductSearchPage";
 import { AuthProvider, useAuth } from "@/lib/auth";
 
 const queryClient = new QueryClient();
@@ -74,6 +75,7 @@ const App = () => (
               <Route path="/analysis" element={<AnalysisPage />} />
               <Route path="/moving-stock" element={<MovingStockPage />} />
               <Route path="/historical" element={<HistoricalPage />} />
+              <Route path="/product-search" element={<ProductSearchPage />} />
               <Route path="/upload" element={<UploadPage />} />
               <Route path="/average-demand" element={<AverageDemandPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
