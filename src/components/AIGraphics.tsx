@@ -98,7 +98,7 @@ export function AIGraphics({ stats }: AIGraphicsProps) {
             <div className="h-2 w-full bg-red-100 dark:bg-red-950 rounded-full overflow-hidden">
               <motion.div 
                 initial={{ width: 0 }}
-                animate={{ width: \`\${Math.min(deadStockPercent, 100)}%\` }}
+                animate={{ width: Math.min(deadStockPercent, 100) + '%' }}
                 transition={{ duration: 1, delay: 0.5 }}
                 className="h-full bg-red-500 rounded-full"
               />
@@ -117,7 +117,7 @@ export function AIGraphics({ stats }: AIGraphicsProps) {
             <div className="h-2 w-full bg-amber-100 dark:bg-amber-950/30 rounded-full overflow-hidden">
               <motion.div 
                 initial={{ width: 0 }}
-                animate={{ width: \`\${Math.min(oosPercent, 100)}%\` }}
+                animate={{ width: Math.min(oosPercent, 100) + '%' }}
                 transition={{ duration: 1, delay: 0.7 }}
                 className="h-full bg-amber-500 rounded-full"
               />
