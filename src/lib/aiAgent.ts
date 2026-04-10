@@ -69,6 +69,11 @@ export async function getInventoryAnalysis(context?: { kodeToko?: string; period
   const slowMoving = relevantSoh.filter(r => r.dsi > 90 && r.soh > 0).length;
   const nonMoving = relevantSoh.filter(r => r.dsi === 0 && r.soh > 0).length;
 
+  // Mobeng Specific Tags Count
+  const tagW_SKU = relevantSoh.filter(r => r.tagProduk?.toUpperCase() === 'W').length;
+  const deadStockTags = relevantSoh.filter(r => ['H', 'D', 'N'].includes(r.tagProduk?.toUpperCase() || '')).length;
+  const deadStockTagsValue = relevantSoh.filter(r => ['H', 'D', 'N'].includes(r.tagProduk?.toUpperCase() || '')).reduce((acc, r) => acc + (r.valueStock || 0), 0);
+
   const systemPrompt = `Anda adalah Ahli Strategi Bisnis Retail dan Supply Chain Analyst Senior yang sangat kritis dan skeptis terhadap inefisiensi.
 Tujuan Anda adalah membantu Manajemen memberikan wawasan yang TAJAM, KRITIS, dan REALISTIS untuk perbaikan operasional.
 
@@ -77,6 +82,9 @@ Gunakan standar analisa profesional:
 2. Resiko Penjualan Hilang (Lost Sales): Fokus pada item kritis (stok < Min).
 3. Strategi Perbaikan: Jangan hanya menyarankan "beli lebih banyak" atau "kurangi stok", tapi berikan saran TAKTIS seperti "Inter-branch Transfer", "Markdown Sale untuk SKU tertentu", atau "Negosiasi Lead Time" serta "Evaluasi Supplier".
 4. Bandingkan secara eksplisit antara data yang ada dengan teori retail terbaik (Pareto 80/20, JIT, Buffer Stock).
+5. PAHAMI SISTEM PELABELAN INVENTORY MOBENG:
+   - Tag "W": Produk utama/wajib (Traffic/Margin tinggi). Tidak boleh Out of Stock.
+   - Tag "H", "D", atau "N": Ini adalah produk DEAD STOCK atau CACAT yang sudah TIDAK AKAN DIORDER LAGI ke supplier. Masalahnya, datanya masih ada dan menahan nilai inventory. Strategi untuk tag ini murni LIKUIDASI, MENGHABISKAN STOK, atau RETUR KE DC/SUPPLIER.
 
 PENTING: Jangan basa-basi. Langsung ke inti permasalahan dan berikan langkah aksi nyata. Gunakan nada bicara yang tegas, profesional, dan berorientasi hasil.`;
 
@@ -90,9 +98,13 @@ PENTING: Jangan basa-basi. Langsung ke inti permasalahan dan berikan langkah aks
 - Produk Slow Moving: ${slowMoving} SKU
 - Produk Non-Moving (Dead Stock): ${nonMoving} SKU
 
+**STATUS TAGGING MOBENG (KRITIS):**
+- Produk Tag "W" (Wajib Ada): ${tagW_SKU} SKU
+- Produk Tag "H/D/N" (Harus Dimatikan/dihabiskan): ${deadStockTags} SKU dengan total nilai tertahan Rp ${deadStockTagsValue.toLocaleString('id-ID')}
+
 TUGAS ANDA:
-1. Berikan Analisa Kritis mengenai "Waste" (pemborosan modal) di ${storeName}.
-2. Identifikasi Resiko Operasional terbesar yang tersembunyi di balik angka ini.
+1. Berikan Analisa Kritis mengenai "Waste" (pemborosan modal) di ${storeName}, berikan fokus besar pada penyelesaian masalah tag H/D/N.
+2. Identifikasi Resiko Operasional terbesar yang tersembunyi di balik angka ini (terutama keamanan Tag W).
 3. Berikan Rekomendasi 3 Langkah Aksi Strategis yang harus dilakukan DALAM MINGGU INI untuk memperbaiki efisiensi.
 4. Jika ini analisa Nasional, sebutkan perbandingan performa antar cabang jika diperlukan.
 
