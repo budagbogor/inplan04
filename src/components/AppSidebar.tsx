@@ -87,7 +87,7 @@ export function AppSidebar() {
   if (isMobile) {
     return (
       <>
-        <div className="fixed top-0 left-0 right-0 z-40 h-14 gradient-sidebar border-b border-sidebar-border flex items-center px-4 gap-3">
+        <div className="fixed top-0 left-0 right-0 z-40 h-14 gradient-sidebar border-b border-sidebar-border flex items-center px-4 gap-3 hide-in-print-ai">
           <button
             onClick={() => setMobileOpen(true)}
             className="p-2 rounded-lg text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/60 transition-colors"
@@ -112,7 +112,7 @@ export function AppSidebar() {
 
         {/* Slide-out sidebar */}
         <aside className={cn(
-          "fixed top-0 left-0 z-50 h-full w-64 gradient-sidebar border-r border-sidebar-border transition-transform duration-300 flex flex-col",
+          "fixed top-0 left-0 z-50 h-full w-64 gradient-sidebar border-r border-sidebar-border transition-transform duration-300 flex flex-col hide-in-print-ai",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}>
           <div className="flex items-center justify-between px-4 py-4 border-b border-sidebar-border">
@@ -201,7 +201,7 @@ export function AppSidebar() {
   // Desktop: collapsible sidebar
   return (
     <aside className={cn(
-      "gradient-sidebar flex flex-col h-screen sticky top-0 transition-all duration-300 border-r border-sidebar-border",
+      "gradient-sidebar flex flex-col h-screen sticky top-0 transition-all duration-300 border-r border-sidebar-border hide-in-print-ai",
       collapsed ? "w-[68px]" : "w-60"
     )}>
       <div className={cn("border-b border-sidebar-border", collapsed ? "px-2 py-4" : "px-4 py-4")}>
