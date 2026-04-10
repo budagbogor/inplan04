@@ -328,27 +328,50 @@ export default function AnalysisPage() {
     }
   };
 
-  // Simple Markdown-ish renderer for Analysis Page
+  const parseInline = (text: string) => {
+    const boldParts = text.split(/(\*\*.*?\*\*)/g);
+    return boldParts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} className="font-bold text-foreground">{part.slice(2, -2)}</strong>;
+      }
+      const italicParts = part.split(/(\*[^\*]+\*)/g);
+      return italicParts.map((subPart, j) => {
+        if (subPart.startsWith('*') && subPart.endsWith('*') && subPart.length > 2) {
+          return <em key={`${i}-${j}`} className="italic font-medium text-foreground/90">{subPart.slice(1, -1)}</em>;
+        }
+        return subPart;
+      });
+    });
+  };
+
+  // Improved Markdown-ish renderer for Analysis Page
   const renderAiContent = (content: string) => {
     return content.split('\n').map((line, i) => {
-      if (line.startsWith('### ')) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('### ')) {
         return <h3 key={i} className="text-lg font-bold text-foreground mt-6 mb-3 flex items-center gap-2 border-b pb-2">
-          {line.replace('### ', '')}
+          {parseInline(trimmed.replace('### ', ''))}
         </h3>;
       }
-      if (line.startsWith('## ')) {
+      if (trimmed.startsWith('## ')) {
         return <h2 key={i} className="text-xl font-extrabold text-primary mt-8 mb-4">
-          {line.replace('## ', '')}
+          {parseInline(trimmed.replace('## ', ''))}
         </h2>;
       }
-      if (line.startsWith('* ') || line.startsWith('- ')) {
-        return <li key={i} className="ml-5 text-sm text-muted-foreground list-disc my-1.5">{line.substring(2)}</li>;
+      if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+        return <li key={i} className="ml-5 text-sm text-foreground/80 list-disc my-1.5 pl-1 leading-relaxed">
+          {parseInline(trimmed.substring(2))}
+        </li>;
       }
-      if (line.match(/^\d+\./)) {
-        return <div key={i} className="ml-2 font-semibold text-sm text-foreground my-2">{line}</div>;
+      if (trimmed.match(/^\d+\./)) {
+        return <div key={i} className="ml-1 font-semibold text-sm text-foreground mt-5 mb-2">
+          {parseInline(trimmed)}
+        </div>;
       }
-      if (line.trim() === '') return <div key={i} className="h-2" />;
-      return <p key={i} className="text-sm text-muted-foreground leading-relaxed mb-2">{line}</p>;
+      if (trimmed === '') return <div key={i} className="h-3" />;
+      return <p key={i} className="text-sm text-foreground/80 leading-relaxed mb-3">
+        {parseInline(trimmed)}
+      </p>;
     });
   };
 

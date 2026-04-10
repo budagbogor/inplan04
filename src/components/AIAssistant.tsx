@@ -80,22 +80,52 @@ export function AIAssistant() {
     }
   };
 
-  // Simple Markdown-ish renderer
+  const parseInline = (text: string) => {
+    const boldParts = text.split(/(\*\*.*?\*\*)/g);
+    return boldParts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} className="font-bold text-foreground">{part.slice(2, -2)}</strong>;
+      }
+      const italicParts = part.split(/(\*[^\*]+\*)/g);
+      return italicParts.map((subPart, j) => {
+        if (subPart.startsWith('*') && subPart.endsWith('*') && subPart.length > 2) {
+          return <em key={`${i}-${j}`} className="italic font-medium text-foreground/90">{subPart.slice(1, -1)}</em>;
+        }
+        return subPart;
+      });
+    });
+  };
+
   const renderContent = (content: string) => {
     return content.split('\n').map((line, i) => {
-      if (line.startsWith('### ')) {
-        return <h3 key={i} className="text-lg font-bold text-foreground mt-4 mb-2 flex items-center gap-2">
-          {line.includes('Analisa') && <BarChart2 className="w-4 h-4 text-blue-500" />}
-          {line.includes('Masalah') && <ShieldAlert className="w-4 h-4 text-amber-500" />}
-          {line.includes('Rekomendasi') && <Lightbulb className="w-4 h-4 text-green-500" />}
-          {line.replace('### ', '')}
+      const trimmed = line.trim();
+      if (trimmed.startsWith('### ')) {
+        return <h3 key={i} className="text-lg font-bold text-foreground mt-6 mb-3 flex items-center gap-2 border-b pb-2">
+          {trimmed.includes('Analisa') && <BarChart2 className="w-5 h-5 text-primary" />}
+          {trimmed.includes('Masalah') && <ShieldAlert className="w-5 h-5 text-amber-500" />}
+          {trimmed.includes('Rekomendasi') && <Lightbulb className="w-5 h-5 text-green-500" />}
+          {parseInline(trimmed.substring(4))}
         </h3>;
       }
-      if (line.startsWith('* ') || line.startsWith('- ')) {
-        return <li key={i} className="ml-4 text-sm text-muted-foreground list-disc my-1">{line.substring(2)}</li>;
+      if (trimmed.startsWith('## ')) {
+        return <h2 key={i} className="text-xl font-extrabold text-primary mt-8 mb-4">
+          {parseInline(trimmed.substring(3))}
+        </h2>;
       }
-      if (line.trim() === '') return <br key={i} />;
-      return <p key={i} className="text-sm text-muted-foreground leading-relaxed">{line}</p>;
+      if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+        return <li key={i} className="ml-5 text-sm text-foreground/80 list-disc my-1.5 pl-1 leading-relaxed">
+          {parseInline(trimmed.substring(2))}
+        </li>;
+      }
+      if (trimmed.match(/^\d+\./)) {
+        return <div key={i} className="ml-1 font-semibold text-sm text-foreground mt-5 mb-2">
+          {parseInline(trimmed)}
+        </div>;
+      }
+      if (trimmed === '') return <div key={i} className="h-3" />;
+      return <p key={i} className="text-sm text-foreground/80 leading-relaxed mb-3">
+        {parseInline(trimmed)}
+      </p>;
     });
   };
 
