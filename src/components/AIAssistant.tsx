@@ -153,7 +153,7 @@ export function AIAssistant() {
                         <SelectTrigger className="w-full sm:w-[150px] h-9 bg-card">
                           <SelectValue placeholder="Pilih Bulan" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="z-[70]">
                           {availablePeriods.map(p => {
                             const [year, month] = p.split('-');
                             return (
@@ -174,7 +174,7 @@ export function AIAssistant() {
                       <SelectTrigger className="w-full sm:w-[200px] h-9 bg-card">
                         <SelectValue placeholder="Pilih Toko" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[70]">
                         <SelectItem value="all">🌐 Seluruh Nasional</SelectItem>
                         {stores.map(s => (
                           <SelectItem key={s.kodeToko} value={s.kodeToko}>
