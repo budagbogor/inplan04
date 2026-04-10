@@ -379,39 +379,41 @@ export default function AnalysisPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <PageHeader title="Analisa Inventory" description="Kesehatan inventory nasional & per toko">
-        <div className="flex items-center gap-2">
-          {availablePeriods.length > 0 && (
-            <div className="flex items-center gap-2 mr-2">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              <Select value={currentPeriod} onValueChange={setCurrentPeriod}>
-                <SelectTrigger className="w-[120px] sm:w-[140px] bg-card h-8 text-xs border-muted-foreground/20">
-                  <SelectValue placeholder="Pilih Periode" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availablePeriods.map(p => {
-                    const [year, month] = p.split('-');
-                    return (
-                      <SelectItem key={p} value={p}>
-                        {months[parseInt(month) - 1]} {year}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+      <div className="hide-in-print-ai">
+        <PageHeader title="Analisa Inventory" description="Kesehatan inventory nasional & per toko">
+          <div className="flex items-center gap-2">
+            {availablePeriods.length > 0 && (
+              <div className="flex items-center gap-2 mr-2">
+                <Calendar className="w-4 h-4 text-muted-foreground" />
+                <Select value={currentPeriod} onValueChange={setCurrentPeriod}>
+                  <SelectTrigger className="w-[120px] sm:w-[140px] bg-card h-8 text-xs border-muted-foreground/20">
+                    <SelectValue placeholder="Pilih Periode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePeriods.map(p => {
+                      const [year, month] = p.split('-');
+                      return (
+                        <SelectItem key={p} value={p}>
+                          {months[parseInt(month) - 1]} {year}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Cari SKU atau Nama Produk..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 w-64 h-9 text-sm"
+              />
             </div>
-          )}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Cari SKU atau Nama Produk..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 w-64 h-9 text-sm"
-            />
           </div>
-        </div>
-      </PageHeader>
+        </PageHeader>
+      </div>
 
       {/* ─── AI Strategic Insight Section (Full Width) ─── */}
       <section className="bg-card rounded-2xl border-2 border-primary/20 shadow-xl overflow-hidden futuristic-surface relative">
@@ -419,7 +421,7 @@ export default function AnalysisPage() {
           <Brain className="w-32 h-32 text-primary" />
         </div>
         
-        <div className="p-5 sm:p-7 border-b bg-primary/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="p-5 sm:p-7 border-b bg-primary/5 flex flex-col sm:flex-row items-center justify-between gap-4 hide-in-print-ai">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20">
               <Sparkles className="w-6 h-6" />
@@ -484,7 +486,7 @@ export default function AnalysisPage() {
                 <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
                 <Brain className="w-6 h-6 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
               </div>
-              <p className="mt-4 text-sm font-medium text-primary animate-pulse">Menghubungkan ke SumoPod AI...</p>
+              <p className="mt-4 text-sm font-medium text-primary animate-pulse">Menghubungkan ke AI Engine...</p>
               <p className="mt-1 text-xs text-muted-foreground">Mengevaluasi variabel modal kerja dan infografis stok...</p>
             </div>
           ) : (
@@ -519,8 +521,9 @@ export default function AnalysisPage() {
       </section>
 
       {/* ─── National Summary Cards ─── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <StatCard title="Stock Efficiency" value={`${health.stockEfficiency}%`} icon={Gauge} variant={health.stockEfficiency >= 80 ? 'success' : health.stockEfficiency >= 60 ? 'warning' : 'destructive'} />
+      <div className="hide-in-print-ai space-y-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <StatCard title="Stock Efficiency" value={`${health.stockEfficiency}%`} icon={Gauge} variant={health.stockEfficiency >= 80 ? 'success' : health.stockEfficiency >= 60 ? 'warning' : 'destructive'} />
         <StatCard title="Non-Moving SKU" value={`${health.nonMovingPercent.toFixed(1)}%`} subtitle={`${formatNumber(health.nonMovingCount)} item`} icon={PackageX} variant="warning" />
         <StatCard title="Nilai Non-Moving" value={formatCurrency(health.nonMovingValue)} subtitle={`${formatNumber(health.nonMovingQty)} pcs`} icon={TrendingDown} variant="destructive" />
         <StatCard title="Overstock SKU" value={formatNumber(health.overstockCount)} subtitle={formatCurrency(health.overstockValue)} icon={AlertTriangle} variant="warning" />
@@ -791,6 +794,7 @@ export default function AnalysisPage() {
             </motion.div>
           );
         })}
+      </div>
       </div>
     </div>
   );

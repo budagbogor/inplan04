@@ -1,4 +1,4 @@
-import { getAISettings, SUMOPOD_BASE_URL } from './aiSettings';
+import { getAISettings, SUMOPOD_BASE_URL, OPENROUTER_BASE_URL } from './aiSettings';
 import { getSOHData, getSalesData } from './dataStore';
 
 export interface AIAnalysisResponse {
@@ -8,19 +8,29 @@ export interface AIAnalysisResponse {
   rawMarkdown: string;
 }
 
-export async function askSumoPod(systemPrompt: string, userPrompt: string, temperature: number = 0.3): Promise<string> {
+export async function askAI(systemPrompt: string, userPrompt: string, temperature: number = 0.3): Promise<string> {
   const settings = getAISettings();
   
   if (!settings.apiKey) {
-    throw new Error('API Key SumoPod belum diatur. Silakan ke halaman Pengaturan.');
+    throw new Error('API Key AI belum diatur. Silakan ke halaman Pengaturan.');
   }
 
-  const response = await fetch(`${SUMOPOD_BASE_URL}/chat/completions`, {
+  const isOpenRouter = settings.provider === 'OpenRouter';
+  const baseUrl = isOpenRouter ? OPENROUTER_BASE_URL : SUMOPOD_BASE_URL;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${settings.apiKey}`
+  };
+
+  if (isOpenRouter) {
+    headers['HTTP-Referer'] = window.location.origin;
+    headers['X-Title'] = 'Mobeng Inventory Planner';
+  }
+
+  const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${settings.apiKey}`
-    },
+    headers: headers,
     body: JSON.stringify({
       model: settings.model,
       messages: [
@@ -135,7 +145,7 @@ TUGAS ANDA:
 
 Format jawaban: Markdown professional dengan header yang tegas.`;
 
-  const markdown = await askSumoPod(systemPrompt, userPrompt, 0.3);
+  const markdown = await askAI(systemPrompt, userPrompt, 0.3);
   
   return {
     markdown,

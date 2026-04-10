@@ -12,7 +12,7 @@ import { getOrderSettings, saveOrderSettings, DEFAULT_ORDER_SETTINGS, syncSettin
 import { getSOHData, invalidateCache } from '@/lib/dataStore';
 import type { OrderSettings, SupplierLeadTime, SOHRecord } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { getAISettings, saveAISettings, POPULAR_MODELS, SUMOPOD_BASE_URL } from '@/lib/aiSettings';
+import { getAISettings, saveAISettings, SUMOPOD_MODELS, OPENROUTER_FREE_MODELS, SUMOPOD_BASE_URL, OPENROUTER_BASE_URL } from '@/lib/aiSettings';
 
 interface SkuInfo {
   kodeProduk: string;
@@ -218,21 +218,28 @@ export default function SettingsPage() {
     }
     
     setIsTestingAi(true);
+    const isOpenRouter = aiSettings.provider === 'OpenRouter';
+    const checkUrl = isOpenRouter ? `${OPENROUTER_BASE_URL}/models` : `${SUMOPOD_BASE_URL}/models`;
+
     try {
-      const resp = await fetch(`${SUMOPOD_BASE_URL}/models`, {
-        headers: {
-          'Authorization': `Bearer ${aiSettings.apiKey}`
-        }
-      });
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${aiSettings.apiKey}`
+      };
+      if (isOpenRouter) {
+        headers['HTTP-Referer'] = window.location.origin;
+        headers['X-Title'] = 'Mobeng Inventory Planner';
+      }
+
+      const resp = await fetch(checkUrl, { headers });
       
       if (resp.ok) {
-        toast.success('Koneksi SumoPod Berhasil!');
+        toast.success(`Koneksi ${aiSettings.provider || 'API'} Berhasil!`);
       } else {
         const errData = await resp.json().catch(() => ({}));
         toast.error(`Koneksi Gagal: ${errData.error?.message || resp.statusText}`);
       }
     } catch (err) {
-      toast.error('Gagal menghubungi server SumoPod');
+      toast.error(`Gagal menghubungi server ${aiSettings.provider}`);
     } finally {
       setIsTestingAi(false);
     }
@@ -270,12 +277,28 @@ export default function SettingsPage() {
       {/* ── Pengaturan AI Agent ── */}
       <Section 
         icon={Brain} 
-        title="SumoPod AI Settings" 
-        description="Konfigurasi asisten AI untuk analisa strategis"
-        badge="SumoPod API"
+        title="Konfigurasi AI Engine" 
+        description="Setting Provider & Model asisten AI untuk analisa strategis"
+        badge={aiSettings.provider || 'SumoPod'}
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Provider AI (Engine)</Label>
+              <select 
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={aiSettings.provider}
+                onChange={e => setAiSettings(prev => ({ 
+                  ...prev, 
+                  provider: e.target.value,
+                  model: e.target.value === 'SumoPod' ? 'gpt-4o-mini' : 'openrouter/auto' 
+                }))}
+              >
+                <option value="SumoPod">SumoPod API</option>
+                <option value="OpenRouter">OpenRouter (Free Auto-Switch / Other Models)</option>
+              </select>
+              <p className="text-[10px] text-muted-foreground">Pilih penyedia layanan kecerdasan buatan</p>
+            </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Pilihan Model AI</Label>
               <select 
@@ -283,14 +306,14 @@ export default function SettingsPage() {
                 value={aiSettings.model}
                 onChange={e => setAiSettings(prev => ({ ...prev, model: e.target.value }))}
               >
-                {POPULAR_MODELS.map(m => (
+                {(aiSettings.provider === 'OpenRouter' ? OPENROUTER_FREE_MODELS : SUMOPOD_MODELS).map(m => (
                   <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
                 ))}
               </select>
               <p className="text-[10px] text-muted-foreground">Pilih model yang akan digunakan untuk analisa</p>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">API KEY (SumoPod)</Label>
+              <Label className="text-xs">API KEY Global</Label>
               <div className="relative">
                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input 
@@ -301,7 +324,7 @@ export default function SettingsPage() {
                   onChange={e => setAiSettings(prev => ({ ...prev, apiKey: e.target.value }))}
                 />
               </div>
-              <p className="text-[10px] text-muted-foreground">Key disimpan secara lokal di browser Anda</p>
+              <p className="text-[10px] text-muted-foreground">Key akan berlaku global untuk engine {aiSettings.provider || 'SumoPod'}.</p>
             </div>
           </div>
           

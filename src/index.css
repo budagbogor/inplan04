@@ -119,27 +119,37 @@
   .text-mono {
     font-family: 'JetBrains Mono', monospace;
   }
-}
-
 @media print {
-  body.print-ai-only * {
-    visibility: hidden;
-  }
-  body.print-ai-only .printable-ai-section,
-  body.print-ai-only .printable-ai-section * {
-    visibility: visible;
-  }
-  body.print-ai-only .printable-ai-section {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    box-shadow: none !important;
-    border: none !important;
-  }
+  /* Sembunyikan elemen utama yang tidak diperlukan */
+  body.print-ai-only [data-sidebar="sidebar"],
+  body.print-ai-only header,
+  body.print-ai-only footer,
   body.print-ai-only .hide-in-print-ai {
     display: none !important;
+  }
+
+  /* Hapus limitasi padding/margin untuk area cetak */
+  body.print-ai-only main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  body.print-ai-only .printable-ai-section {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Paksa warna tinta hitam pada mode gelap agar teks terbaca di kertas putih */
+  body.print-ai-only, 
+  body.print-ai-only .printable-ai-section,
+  body.print-ai-only .printable-ai-section .text-foreground,
+  body.print-ai-only .printable-ai-section h2,
+  body.print-ai-only .printable-ai-section h3,
+  body.print-ai-only .printable-ai-section p,
+  body.print-ai-only .printable-ai-section li,
+  body.print-ai-only .printable-ai-section strong {
+    color: black !important;
   }
 }
