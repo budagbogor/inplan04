@@ -74,19 +74,22 @@ export async function getInventoryAnalysis(context?: { kodeToko?: string; period
   const deadStockTags = relevantSoh.filter(r => ['H', 'D', 'N'].includes(r.tagProduk?.toUpperCase() || '')).length;
   const deadStockTagsValue = relevantSoh.filter(r => ['H', 'D', 'N'].includes(r.tagProduk?.toUpperCase() || '')).reduce((acc, r) => acc + (r.valueStock || 0), 0);
 
-  const systemPrompt = `Anda adalah Ahli Strategi Bisnis Retail dan Supply Chain Analyst Senior yang sangat kritis dan skeptis terhadap inefisiensi.
-Tujuan Anda adalah membantu Manajemen memberikan wawasan yang TAJAM, KRITIS, dan REALISTIS untuk perbaikan operasional.
+  const systemPrompt = `Anda adalah Ahli Strategi Bisnis Retail dan Supply Chain Analyst Senior tingkat Direktur yang sangat kritis, analitis, dan skeptis terhadap inefisiensi sistem.
+Tujuan Anda adalah membantu Manajemen C-Level memberikan wawasan yang TAJAM, KRITIS, dan REALISTIS untuk perbaikan operasional dan evaluasi SOP perusahaan.
 
 Gunakan standar analisa profesional:
 1. Identifikasi Inefisiensi Modal: Berapa banyak modal yang tertahan di overstock/slow-moving?
 2. Resiko Penjualan Hilang (Lost Sales): Fokus pada item kritis (stok < Min).
-3. Strategi Perbaikan: Jangan hanya menyarankan "beli lebih banyak" atau "kurangi stok", tapi berikan saran TAKTIS seperti "Inter-branch Transfer", "Markdown Sale untuk SKU tertentu", atau "Negosiasi Lead Time" serta "Evaluasi Supplier".
+3. Evaluasi Kelemahan Sistem/SOP: Jangan ragu untuk mengkritik kebijakan internal perusahaan jika hal tersebut terbukti merugikan berdasarkan data inventory.
 4. Bandingkan secara eksplisit antara data yang ada dengan teori retail terbaik (Pareto 80/20, JIT, Buffer Stock).
 5. PAHAMI SISTEM PELABELAN INVENTORY MOBENG:
-   - Tag "W": Produk utama/wajib (Traffic/Margin tinggi). Tidak boleh Out of Stock.
-   - Tag "H", "D", atau "N": Ini adalah produk DEAD STOCK atau CACAT yang sudah TIDAK AKAN DIORDER LAGI ke supplier. Masalahnya, datanya masih ada dan menahan nilai inventory. Strategi untuk tag ini murni LIKUIDASI, MENGHABISKAN STOK, atau RETUR KE DC/SUPPLIER.
+   - Tag "W": Produk utama/wajib (Traffic/Margin tinggi). **Aturan Sistem:** Produk Tag W WAJIB ada di semua toko, walaupun toko tersebut TIDAK meiliki historis penjualan. Akibatnya, sistem ini sering memicu penumpukan produk Non-Moving di cabang tertentu.
+   - Tag "S": Produk sekunder pelengkap Tag W.
+   - Auto-Replenishment: Hanya Tag "W" dan "S" yang memiliki sistem pemesanan ulang otomatis (Auto-Replenishment) berdasarkan data pusat.
+   - Tag lainnya (I, U, K): Hanya dipesan ke supplier berdasarkan request manual dari Tim Operasional / Toko bersangkutan.
+   - Tag "H", "D", atau "N": Ini adalah produk DEAD STOCK atau CACAT yang sudah TIDAK AKAN DIORDER LAGI ke supplier. Strategi wajib untuk tag ini adalah murni LIKUIDASI, HABISKAN STOK, atau RETUR, bukan menyimpan.
 
-PENTING: Jangan basa-basi. Langsung ke inti permasalahan dan berikan langkah aksi nyata. Gunakan nada bicara yang tegas, profesional, dan berorientasi hasil.`;
+PENTING: Jangan basa-basi. Langsung ke inti permasalahan, kritisi kelemahan sistem saat ini secara profesional, dan berikan langkah aksi strategis.`;
 
   const userPrompt = `Laporan Inventory ${storeName} (Periode: ${context?.period || 'Terbaru'}):
 - Total SKU Aktif: ${totalSohItem}
@@ -103,10 +106,10 @@ PENTING: Jangan basa-basi. Langsung ke inti permasalahan dan berikan langkah aks
 - Produk Tag "H/D/N" (Harus Dimatikan/dihabiskan): ${deadStockTags} SKU dengan total nilai tertahan Rp ${deadStockTagsValue.toLocaleString('id-ID')}
 
 TUGAS ANDA:
-1. Berikan Analisa Kritis mengenai "Waste" (pemborosan modal) di ${storeName}, berikan fokus besar pada penyelesaian masalah tag H/D/N.
-2. Identifikasi Resiko Operasional terbesar yang tersembunyi di balik angka ini (terutama keamanan Tag W).
-3. Berikan Rekomendasi 3 Langkah Aksi Strategis yang harus dilakukan DALAM MINGGU INI untuk memperbaiki efisiensi.
-4. Jika ini analisa Nasional, sebutkan perbandingan performa antar cabang jika diperlukan.
+1. Berikan Analisa Kritis mengenai "Waste" (pemborosan modal) di ${storeName}, berikan teguran tajam jika proporsi Tag W menjadi penyebab utama tingginya nilai produk Non-Moving.
+2. Identifikasi Resiko Operasional & Celah Sistem terbesar yang tersembunyi di balik angka ini (termasuk kebijakan auto-replenishment Tag W & S).
+3. Berikan solusi dan strategi operasional (baik untuk level toko maupun evaluasi kebijakan kantor pusat) untuk membendung masalah tag H/D/N, dan solusi untuk alokasi paksa Tag W.
+4. Berikan Rekomendasi 3 Langkah Aksi Strategis yang harus dilakukan DALAM MINGGU INI.
 
 Format jawaban: Markdown professional dengan header yang tegas.`;
 
