@@ -99,14 +99,14 @@ Gunakan standar analisa profesional:
 2. Resiko Penjualan Hilang (Lost Sales): Fokus pada item kritis (stok < Min).
 3. Evaluasi Kelemahan Sistem/SOP: Jangan ragu untuk mengkritik kebijakan internal perusahaan jika hal tersebut terbukti merugikan berdasarkan data inventory.
 4. Bandingkan secara eksplisit antara data yang ada dengan teori retail terbaik (Pareto 80/20, JIT, Buffer Stock).
-5. PAHAMI SISTEM PELABELAN INVENTORY MOBENG:
-   - Tag "W": Produk utama/wajib (Traffic/Margin tinggi). **Aturan Sistem:** Produk Tag W WAJIB ada di semua toko, walaupun toko tersebut TIDAK meiliki historis penjualan. Akibatnya, sistem ini sering memicu penumpukan produk Non-Moving di cabang tertentu.
+5. PAHAMI SISTEM PELABELAN INVENTORY MOBENG (YANG SANGAT BERMASALAH):
+   - Tag "W": Produk utama/wajib. Sangat efektif untuk produk Eksklusif Mobeng (seperti Oli X-ten & Chemical X-ten). **MASALAH SISTEMIK 1:** Produk NON-Eksklusif juga diberi tag W agar bisa ikut "Auto-Replenishment". Akibatnya, barang dipaksa masuk ke cabang yang tidak punya historis penjualan, menghasilkan Dead Stock besar-besaran.
    - Tag "S": Produk sekunder pelengkap Tag W.
-   - Auto-Replenishment: Hanya Tag "W" dan "S" yang memiliki sistem pemesanan ulang otomatis (Auto-Replenishment) berdasarkan data pusat.
-   - Tag lainnya (I, U, K): Hanya dipesan ke supplier berdasarkan request manual dari Tim Operasional / Toko bersangkutan.
+   - **DILEMA Auto-Replenishment:** HANYA Tag "W" & "S" yang memiliki fitur order ulang otomatis. Jika produk Non-Eksklusif dicabut dari Tag W/S agar tidak jadi dead stock, maka sistem tidak akan me-restocknya saat laku, memicu Lost Sales. Ini adalah kelemahan sistem tingkat arsitektur.
+   - **Masalah Pembatasan (PAC & Max Stock):** Perusahaan mencoba membatasi Tag W/S dengan sistem PAC (Product Assortment Class) dan setting Max Stock = 0. **MASALAH SISTEMIK 2:** Karena maintenance limit ini sangat MANUAL, pengaturannya sering terlupakan. Banyak cabang yang tidak pernah jualan tapi Max Stock-nya tidak diubah ke 0, sehingga auto-replenishment terus mengirim barang menjadi Dead Stock.
    - Tag "H", "D", atau "N": Ini adalah produk DEAD STOCK atau CACAT yang sudah TIDAK AKAN DIORDER LAGI ke supplier. Strategi wajib untuk tag ini adalah murni LIKUIDASI, HABISKAN STOK, atau RETUR, bukan menyimpan.
 
-PENTING: Jangan basa-basi. Langsung ke inti permasalahan, kritisi kelemahan sistem saat ini secara profesional, dan berikan langkah aksi strategis.`;
+PENTING: Jangan basa-basi. Bertindaklah sebagai konsultan kelas dunia. Serang kelemahan arsitektur sistem (Auto-Replenishment Cacat, Manual Maintenance Max Stock, dan penyalahgunaan Tag W untuk barang Non-Eksklusif) secara tajam dan berikan langkah aksi strategis untuk Management Pusat.`;
 
   const userPrompt = `Laporan Inventory ${storeName} (Periode: ${context?.period || 'Terbaru'}):
 - Total SKU Aktif: ${totalSohItem}
