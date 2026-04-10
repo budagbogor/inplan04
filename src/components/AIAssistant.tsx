@@ -254,7 +254,7 @@ export function AIAssistant() {
                       <motion.div 
                         initial={{ opacity: 0, scale: 0.98 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="space-y-6"
+                        className="space-y-6 printable-ai-section"
                       >
                         {/* INJECT AIGraphics INFOGRAPHIC HERE */}
                         {analysisResult && <AIGraphics stats={analysisResult.stats} />}
@@ -270,7 +270,7 @@ export function AIAssistant() {
 
               {/* Footer Actions */}
               {analysisResult && !isAnalyzing && (
-                <div className="p-4 border-t bg-muted/30 flex justify-center">
+                <div className="p-4 border-t bg-muted/30 flex justify-center hide-in-print-ai">
                   <Button 
                     variant="outline" 
                     className="w-full sm:w-auto gap-2 text-primary hover:text-primary/90 hover:bg-primary/10 border-primary/20 px-8"

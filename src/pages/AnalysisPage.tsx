@@ -491,7 +491,7 @@ export default function AnalysisPage() {
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="space-y-6 text-foreground"
+              className="space-y-6 text-foreground printable-ai-section"
             >
               <div className="bg-muted/30 rounded-3xl p-6 sm:p-8 border shadow-inner">
                 {/* INJECT AIGraphics INFOGRAPHIC HERE */}
@@ -502,8 +502,14 @@ export default function AnalysisPage() {
                 </div>
               </div>
               
-              <div className="mt-6 flex justify-end">
-                <Button variant="ghost" size="sm" className="text-[10px] gap-1.5 text-muted-foreground uppercase tracking-widest" onClick={() => window.print()}>
+              <div className="mt-6 flex justify-end hide-in-print-ai">
+                <Button variant="ghost" size="sm" className="text-[10px] gap-1.5 text-muted-foreground uppercase tracking-widest" onClick={() => {
+                  document.body.classList.add('print-ai-only');
+                  window.print();
+                  setTimeout(() => {
+                    document.body.classList.remove('print-ai-only');
+                  }, 500); // Remove class after print dialog is summoned
+                }}>
                   <Send className="w-3 h-3" /> Cetak Laporan Strategis
                 </Button>
               </div>

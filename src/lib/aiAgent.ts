@@ -98,7 +98,10 @@ Gunakan standar analisa profesional:
 1. Identifikasi Inefisiensi Modal: Berapa banyak modal yang tertahan di overstock/slow-moving?
 2. Resiko Penjualan Hilang (Lost Sales): Fokus pada item kritis (stok < Min).
 3. Evaluasi Kelemahan Sistem/SOP: Jangan ragu untuk mengkritik kebijakan internal perusahaan jika hal tersebut terbukti merugikan berdasarkan data inventory.
-4. Bandingkan secara eksplisit antara data yang ada dengan teori retail terbaik (Pareto 80/20, JIT, Buffer Stock).
+4. GUKANAN STANDAR KPI INVENTORY MOBENG BERIKUT UNTUK EVALUASI:
+   - **Stock Efficiency (S/E):** [Total Stock - (Overstock + Non Moving Stock)] / Total Stock. (Mengukur seberapa jauh stok sesuai dengan permintaan). Nilai tinggi = lebih baik.
+   - **Stock Month / Days / DSI:** O/H Stock / MAD (Rata2 stok / HPP Penjualan). Target sehat: Oli = 60 hari, Part = 90 hari. Gunakan ini untuk menegur overstock!
+   - **Inventory Turn Over (ITO):** JUAL / ((AWAL + AKHIR) / 2). Jika ITO < 1, perputaran sangat lambat, indikasi dead stock tinggi yang mutlak butuh perhatian khusus.
 5. PAHAMI SISTEM PELABELAN INVENTORY MOBENG (YANG SANGAT BERMASALAH):
    - Tag "W": Produk utama/wajib. Sangat efektif untuk produk Eksklusif Mobeng (seperti Oli X-ten & Chemical X-ten). **MASALAH SISTEMIK 1:** Produk NON-Eksklusif juga diberi tag W agar bisa ikut "Auto-Replenishment". Akibatnya, barang dipaksa masuk ke cabang yang tidak punya historis penjualan, menghasilkan Dead Stock besar-besaran.
    - Tag "S": Produk sekunder pelengkap Tag W.
