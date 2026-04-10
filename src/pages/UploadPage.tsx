@@ -219,7 +219,7 @@ export default function UploadPage() {
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-6 w-full">
       <PageHeader title="Upload Data" description="Upload file Excel penjualan (Sales) dan stok (SOH Jakarta & Surabaya)">
         <div className="flex items-center gap-2">
           <select 

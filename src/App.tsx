@@ -46,7 +46,7 @@ function AppShell() {
     <div className="flex min-h-screen w-full">
       <AppSidebar />
       <main className="flex-1 min-w-0 pt-14 md:pt-0 flex flex-col futuristic-surface">
-        <div className="relative z-10 flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto w-full">
+        <div className="relative z-10 flex-1 p-4 sm:p-6 lg:p-8 w-full">
           <Outlet />
         </div>
         <footer className="relative z-10 border-t py-4 text-center text-xs text-muted-foreground">
