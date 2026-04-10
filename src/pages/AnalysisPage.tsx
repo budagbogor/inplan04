@@ -5,7 +5,8 @@ import {
   ChevronDown, ChevronUp, Search, Gauge, ShieldCheck, PackageX,
   LayoutGrid, Calendar, TrendingUp, ShieldAlert, ChevronRight, Brain, Sparkles, Loader2, Send
 } from 'lucide-react';
-import { getInventoryAnalysis } from '@/lib/aiAgent';
+import { getInventoryAnalysis, type AIAnalysisResult } from '@/lib/aiAgent';
+import { AIGraphics } from '@/components/AIGraphics';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -227,7 +228,7 @@ export default function AnalysisPage() {
   const [isWsExpanded, setIsWsExpanded] = useState(false);
   
   // AI Analysis States
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiAnalysisResult, setAiAnalysisResult] = useState<AIAnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedAiStore, setSelectedAiStore] = useState<string>('all');
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
@@ -314,12 +315,13 @@ export default function AnalysisPage() {
 
   const handleRunAiAnalysis = async () => {
     setIsAnalyzing(true);
+    setAiAnalysisResult(null);
     try {
       const result = await getInventoryAnalysis({
         kodeToko: selectedAiStore === 'all' ? undefined : selectedAiStore,
         period: currentPeriod
       });
-      setAiAnalysis(result);
+      setAiAnalysisResult(result);
       toast.success('Analisa Strategis Berhasil Dibuat');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal membuat analisa');
@@ -466,14 +468,14 @@ export default function AnalysisPage() {
         </div>
 
         <div className="p-6 sm:p-8 min-h-[200px] relative">
-          {!aiAnalysis && !isAnalyzing ? (
+          {!aiAnalysisResult && !isAnalyzing ? (
             <div className="flex flex-col items-center justify-center text-center py-12 space-y-4">
               <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground/40">
                 <Brain className="w-8 h-8" />
               </div>
               <div className="space-y-1 max-w-sm">
                 <p className="text-sm font-semibold text-foreground">Analisa Strategis Siap Dibuat</p>
-                <p className="text-xs text-muted-foreground">Klik tombol di atas untuk memulai analisa kritis terhadap data {selectedAiStore === 'all' ? 'Nasional' : health.stores.find(s => s.kodeToko === selectedAiStore)?.namaToko} periode {currentPeriod}.</p>
+                <p className="text-xs text-muted-foreground">Klik tombol di atas untuk memulai analisa kritis terhadap data {selectedAiStore === 'all' ? 'Nasional' : health.stores.find(s => s.kodeToko === selectedAiStore)?.namaToko} periode {currentPeriod} dengan format Infografis Visual.</p>
               </div>
             </div>
           ) : isAnalyzing ? (
@@ -483,16 +485,21 @@ export default function AnalysisPage() {
                 <Brain className="w-6 h-6 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
               </div>
               <p className="mt-4 text-sm font-medium text-primary animate-pulse">Menghubungkan ke SumoPod AI...</p>
-              <p className="mt-1 text-xs text-muted-foreground">Mengevaluasi variabel modal kerja dan inefisiensi stok...</p>
+              <p className="mt-1 text-xs text-muted-foreground">Mengevaluasi variabel modal kerja dan infografis stok...</p>
             </div>
           ) : (
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="prose prose-sm max-w-none text-foreground dark:prose-invert"
+              className="space-y-6 text-foreground"
             >
-              <div className="bg-muted/30 rounded-2xl p-6 sm:p-8 border border-muted/50 shadow-inner">
-                {renderAiContent(aiAnalysis || '')}
+              <div className="bg-muted/30 rounded-3xl p-6 sm:p-8 border shadow-inner">
+                {/* INJECT AIGraphics INFOGRAPHIC HERE */}
+                {aiAnalysisResult && <AIGraphics stats={aiAnalysisResult.stats} />}
+
+                <div className="prose prose-sm max-w-none dark:prose-invert mt-6">
+                  {renderAiContent(aiAnalysisResult?.markdown || '')}
+                </div>
               </div>
               
               <div className="mt-6 flex justify-end">

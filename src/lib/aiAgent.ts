@@ -49,7 +49,24 @@ export async function askSumoPod(systemPrompt: string, userPrompt: string, tempe
   return data.choices?.[0]?.message?.content || 'Tidak ada respon dari AI.';
 }
 
-export async function getInventoryAnalysis(context?: { kodeToko?: string; period?: string }): Promise<string> {
+export interface AIAnalysisResult {
+  markdown: string;
+  stats: {
+    totalStockValue: number;
+    totalSohItem: number;
+    criticalItems: number;
+    zeroStockItems: number;
+    overstockItems: number;
+    fastMoving: number;
+    slowMoving: number;
+    nonMoving: number;
+    tagW_SKU: number;
+    deadStockTags: number;
+    deadStockTagsValue: number;
+  };
+}
+
+export async function getInventoryAnalysis(context?: { kodeToko?: string; period?: string }): Promise<AIAnalysisResult> {
   const soh = await getSOHData(context?.period);
   const sales = await getSalesData(context?.period);
   
@@ -113,5 +130,22 @@ TUGAS ANDA:
 
 Format jawaban: Markdown professional dengan header yang tegas.`;
 
-  return askSumoPod(systemPrompt, userPrompt, 0.3);
+  const markdown = await askSumoPod(systemPrompt, userPrompt, 0.3);
+  
+  return {
+    markdown,
+    stats: {
+      totalStockValue,
+      totalSohItem,
+      criticalItems,
+      zeroStockItems,
+      overstockItems,
+      fastMoving,
+      slowMoving,
+      nonMoving,
+      tagW_SKU,
+      deadStockTags,
+      deadStockTagsValue
+    }
+  };
 }

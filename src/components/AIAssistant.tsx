@@ -5,15 +5,16 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { getInventoryAnalysis } from '@/lib/aiAgent';
+import { getInventoryAnalysis, type AIAnalysisResult } from '@/lib/aiAgent';
 import { getUploadedFiles, getSOHData } from '@/lib/dataStore';
 import { filterByActiveStores } from '@/lib/orderSettings';
+import { AIGraphics } from './AIGraphics';
 import { toast } from 'sonner';
 
 export function AIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null);
   
   // Filters State
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
@@ -62,13 +63,13 @@ export function AIAssistant() {
 
   const handleRunAnalysis = async () => {
     setIsAnalyzing(true);
-    setAnalysis(null);
+    setAnalysisResult(null);
     try {
       const result = await getInventoryAnalysis({
         kodeToko: selectedStore === 'all' ? undefined : selectedStore,
         period: currentPeriod
       });
-      setAnalysis(result);
+      setAnalysisResult(result);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Gagal melakukan analisa';
       toast.error(msg);
@@ -226,7 +227,7 @@ export function AIAssistant() {
 
               {/* Chat/Analysis Area */}
               <ScrollArea className="flex-1 bg-muted/10">
-                {!analysis && !isAnalyzing ? (
+                {!analysisResult && !isAnalyzing ? (
                   <div className="h-full flex flex-col items-center justify-center text-center space-y-4 pt-20">
                     <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center text-primary shadow-inner">
                       <Sparkles className="w-12 h-12 animate-pulse" />
@@ -235,7 +236,7 @@ export function AIAssistant() {
                       <h3 className="text-xl font-bold text-foreground">Strategic Analysis Full-Page</h3>
                       <p className="text-sm text-muted-foreground leading-relaxed">
                         Analisa ini dikunci pada <strong>Suhu (Temperature) 0.3</strong> untuk memberikan wawasan yang tajam, sangat akurat, dan berfokus pada efisiensi modal. <br/><br/>
-                        Silakan pilih <b>Periode</b> dan <b>Toko</b> di bagian atas, lalu klik tombol di bawah untuk memulai analisa.
+                        Silakan pilih <b>Periode</b> dan <b>Toko</b> di bagian atas, lalu klik tombol di bawah untuk memulai analisa bersama Infografis Visual.
                       </p>
                     </div>
                     <Button size="lg" onClick={handleRunAnalysis} className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-lg w-full sm:w-auto px-8">
@@ -253,9 +254,14 @@ export function AIAssistant() {
                       <motion.div 
                         initial={{ opacity: 0, scale: 0.98 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="bg-card rounded-3xl p-6 sm:p-10 border shadow-md prose prose-sm sm:prose-base max-w-none text-foreground dark:prose-invert"
+                        className="space-y-6"
                       >
-                        {renderContent(analysis || '')}
+                        {/* INJECT AIGraphics INFOGRAPHIC HERE */}
+                        {analysisResult && <AIGraphics stats={analysisResult.stats} />}
+
+                        <div className="bg-card rounded-3xl p-6 sm:p-10 border shadow-md prose prose-sm sm:prose-base max-w-none text-foreground dark:prose-invert">
+                          {renderContent(analysisResult?.markdown || '')}
+                        </div>
                       </motion.div>
                     )}
                   </div>
@@ -263,7 +269,7 @@ export function AIAssistant() {
               </ScrollArea>
 
               {/* Footer Actions */}
-              {analysis && !isAnalyzing && (
+              {analysisResult && !isAnalyzing && (
                 <div className="p-4 border-t bg-muted/30 flex justify-center">
                   <Button 
                     variant="outline" 
