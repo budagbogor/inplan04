@@ -1,10 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import {
-  Activity, AlertTriangle, TrendingDown, Package, BarChart3,
-  ChevronDown, ChevronUp, Search, Gauge, ShieldCheck, PackageX,
-  LayoutGrid, Calendar, TrendingUp, ShieldAlert, ChevronRight
+  LayoutGrid, Calendar, TrendingUp, ShieldAlert, ChevronRight, Brain, Sparkles, Loader2, Send
 } from 'lucide-react';
+import { getInventoryAnalysis } from '@/lib/aiAgent';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
@@ -223,6 +220,11 @@ export default function AnalysisPage() {
   const [expandedStore, setExpandedStore] = useState<string | null>(null);
   const [selectedSku, setSelectedSku] = useState<SkuSummary | null>(null);
   const [isWsExpanded, setIsWsExpanded] = useState(false);
+  
+  // AI Analysis States
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [selectedAiStore, setSelectedAiStore] = useState<string>('all');
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
   const [currentPeriod, setCurrentPeriod] = useState<string>('');
 
@@ -305,6 +307,46 @@ export default function AnalysisPage() {
     );
   }
 
+  const handleRunAiAnalysis = async () => {
+    setIsAnalyzing(true);
+    try {
+      const result = await getInventoryAnalysis({
+        kodeToko: selectedAiStore === 'all' ? undefined : selectedAiStore,
+        period: currentPeriod
+      });
+      setAiAnalysis(result);
+      toast.success('Analisa Strategis Berhasil Dibuat');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal membuat analisa');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Simple Markdown-ish renderer for Analysis Page
+  const renderAiContent = (content: string) => {
+    return content.split('\n').map((line, i) => {
+      if (line.startsWith('### ')) {
+        return <h3 key={i} className="text-lg font-bold text-foreground mt-6 mb-3 flex items-center gap-2 border-b pb-2">
+          {line.replace('### ', '')}
+        </h3>;
+      }
+      if (line.startsWith('## ')) {
+        return <h2 key={i} className="text-xl font-extrabold text-primary mt-8 mb-4">
+          {line.replace('## ', '')}
+        </h2>;
+      }
+      if (line.startsWith('* ') || line.startsWith('- ')) {
+        return <li key={i} className="ml-5 text-sm text-muted-foreground list-disc my-1.5">{line.substring(2)}</li>;
+      }
+      if (line.match(/^\d+\./)) {
+        return <div key={i} className="ml-2 font-semibold text-sm text-foreground my-2">{line}</div>;
+      }
+      if (line.trim() === '') return <div key={i} className="h-2" />;
+      return <p key={i} className="text-sm text-muted-foreground leading-relaxed mb-2">{line}</p>;
+    });
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <PageHeader title="Analisa Inventory" description="Kesehatan inventory nasional & per toko">
@@ -340,6 +382,100 @@ export default function AnalysisPage() {
           </div>
         </div>
       </PageHeader>
+
+      {/* ─── AI Strategic Insight Section (Full Width) ─── */}
+      <section className="bg-card rounded-2xl border-2 border-primary/20 shadow-xl overflow-hidden futuristic-surface relative">
+        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+          <Brain className="w-32 h-32 text-primary" />
+        </div>
+        
+        <div className="p-5 sm:p-7 border-b bg-primary/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground leading-none">AI Strategic Insight</h2>
+              <p className="text-xs text-muted-foreground mt-1 tracking-wide">Analisa kritis mendalam berdasarkan praktik terbaik retail</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Filter Toko:</span>
+              <Select value={selectedAiStore} onValueChange={setSelectedAiStore}>
+                <SelectTrigger className="w-full sm:w-[180px] h-9 text-xs bg-background">
+                  <SelectValue placeholder="Pilih Toko" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">🌐 Seluruh Nasional</SelectItem>
+                  {health.stores.map(s => (
+                    <SelectItem key={s.kodeToko} value={s.kodeToko}>
+                      🏠 {s.namaToko}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button 
+              onClick={handleRunAiAnalysis} 
+              disabled={isAnalyzing}
+              className="gap-2 h-9 px-5 bg-primary hover:bg-primary/90 shadow-md shadow-primary/10"
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Menganalisa...
+                </>
+              ) : (
+                <>
+                  <Brain className="w-4 h-4" />
+                  Generate Analisa Kritis
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        <div className="p-6 sm:p-8 min-h-[200px] relative">
+          {!aiAnalysis && !isAnalyzing ? (
+            <div className="flex flex-col items-center justify-center text-center py-12 space-y-4">
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground/40">
+                <Brain className="w-8 h-8" />
+              </div>
+              <div className="space-y-1 max-w-sm">
+                <p className="text-sm font-semibold text-foreground">Analisa Strategis Siap Dibuat</p>
+                <p className="text-xs text-muted-foreground">Klik tombol di atas untuk memulai analisa kritis terhadap data {selectedAiStore === 'all' ? 'Nasional' : health.stores.find(s => s.kodeToko === selectedAiStore)?.namaToko} periode {currentPeriod}.</p>
+              </div>
+            </div>
+          ) : isAnalyzing ? (
+            <div className="flex flex-col items-center justify-center py-20 animate-in fade-in duration-500">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                <Brain className="w-6 h-6 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+              </div>
+              <p className="mt-4 text-sm font-medium text-primary animate-pulse">Menghubungkan ke SumoPod AI...</p>
+              <p className="mt-1 text-xs text-muted-foreground">Mengevaluasi variabel modal kerja dan inefisiensi stok...</p>
+            </div>
+          ) : (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="prose prose-sm max-w-none text-foreground dark:prose-invert"
+            >
+              <div className="bg-muted/30 rounded-2xl p-6 sm:p-8 border border-muted/50 shadow-inner">
+                {renderAiContent(aiAnalysis || '')}
+              </div>
+              
+              <div className="mt-6 flex justify-end">
+                <Button variant="ghost" size="sm" className="text-[10px] gap-1.5 text-muted-foreground uppercase tracking-widest" onClick={() => window.print()}>
+                  <Send className="w-3 h-3" /> Cetak Laporan Strategis
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      </section>
 
       {/* ─── National Summary Cards ─── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

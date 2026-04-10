@@ -8,7 +8,7 @@ export interface AIAnalysisResponse {
   rawMarkdown: string;
 }
 
-export async function askSumoPod(systemPrompt: string, userPrompt: string): Promise<string> {
+export async function askSumoPod(systemPrompt: string, userPrompt: string, temperature: number = 0.3): Promise<string> {
   const settings = getAISettings();
   
   if (!settings.apiKey) {
@@ -26,10 +26,10 @@ export async function askSumoPod(systemPrompt: string, userPrompt: string): Prom
       messages: [
         { 
           role: 'user', 
-          content: `INTRUKSI SISTEM:\n${systemPrompt}\n\nPERTANYAAN USER:\n${userPrompt}` 
+          content: `INSTRUCTIONS (INTERNAL SYSTEM):\n${systemPrompt}\n\nUSER REQUEST & DATA:\n${userPrompt}` 
         }
       ],
-      temperature: 0.7,
+      temperature: temperature,
       max_tokens: 1500
     })
   });
@@ -49,9 +49,9 @@ export async function askSumoPod(systemPrompt: string, userPrompt: string): Prom
   return data.choices?.[0]?.message?.content || 'Tidak ada respon dari AI.';
 }
 
-export async function getInventoryAnalysis(context?: { kodeToko?: string }): Promise<string> {
-  const soh = await getSOHData();
-  const sales = await getSalesData();
+export async function getInventoryAnalysis(context?: { kodeToko?: string; period?: string }): Promise<string> {
+  const soh = await getSOHData(context?.period);
+  const sales = await getSalesData(context?.period);
   
   // Filter context if store-specific
   const relevantSoh = context?.kodeToko ? soh.filter(r => r.kodeToko === context.kodeToko) : soh;
@@ -60,41 +60,43 @@ export async function getInventoryAnalysis(context?: { kodeToko?: string }): Pro
   // Calculate some basic metrics for the prompt
   const totalStockValue = relevantSoh.reduce((acc, r) => acc + (r.valueStock || 0), 0);
   const totalSohItem = relevantSoh.length;
-  const criticalItems = relevantSoh.filter(r => (r.soh || 0) <= (r.minStock || 0)).length;
-  const overstockItems = relevantSoh.filter(r => (r.soh || 0) > (r.maxStock || 0)).length;
+  const criticalItems = relevantSoh.filter(r => (r.soh || 0) <= (r.minStock || 0) && r.soh > 0).length;
+  const zeroStockItems = relevantSoh.filter(r => (r.soh || 0) === 0).length;
+  const overstockItems = relevantSoh.filter(r => (r.soh || 0) > (r.maxStock || 0) && r.maxStock > 0).length;
   
   // Basic ABC calculation count
   const fastMoving = relevantSoh.filter(r => r.dsi <= 30 && r.soh > 0).length;
-  const slowMoving = relevantSoh.filter(r => r.dsi > 90).length;
+  const slowMoving = relevantSoh.filter(r => r.dsi > 90 && r.soh > 0).length;
+  const nonMoving = relevantSoh.filter(r => r.dsi === 0 && r.soh > 0).length;
 
-  const systemPrompt = `Anda adalah Konsultan Bisnis Retail Senior dan Ahli Manajemen Rantai Pasok (Supply Chain).
-Tugas Anda adalah menganalisa data inventaris toko "Mobeng" dan memberikan laporan strategis.
-Gunakan teori retail terbaik seperti: 
-1. ABC Analysis (Pareto)
-2. Safety Stock & Reorder Point (ROP) logic
-3. JIT (Just in Time) untuk item slow moving
-4. Inventory Turnover Ratio (ITO) optimization
+  const systemPrompt = `Anda adalah Ahli Strategi Bisnis Retail dan Supply Chain Analyst Senior yang sangat kritis dan skeptis terhadap inefisiensi.
+Tujuan Anda adalah membantu Manajemen memberikan wawasan yang TAJAM, KRITIS, dan REALISTIS untuk perbaikan operasional.
 
-Berikan jawaban dalam Bahasa Indonesia yang profesional, padat, dan solutif.
-Format jawaban harus menggunakan Markdown dengan struktur:
-### 📊 Analisa Kondisi Saat Ini (${storeName})
-...penjelasan kondisi stok dan kesehatan inventory...
+Gunakan standar analisa profesional:
+1. Identifikasi Inefisiensi Modal: Berapa banyak modal yang tertahan di overstock/slow-moving?
+2. Resiko Penjualan Hilang (Lost Sales): Fokus pada item kritis (stok < Min).
+3. Strategi Perbaikan: Jangan hanya menyarankan "beli lebih banyak" atau "kurangi stok", tapi berikan saran TAKTIS seperti "Inter-branch Transfer", "Markdown Sale untuk SKU tertentu", atau "Negosiasi Lead Time" serta "Evaluasi Supplier".
+4. Bandingkan secara eksplisit antara data yang ada dengan teori retail terbaik (Pareto 80/20, JIT, Buffer Stock).
 
-### ⚠️ Masalah yang Terdeteksi
-...list poin permasalahan utama...
+PENTING: Jangan basa-basi. Langsung ke inti permasalahan dan berikan langkah aksi nyata. Gunakan nada bicara yang tegas, profesional, dan berorientasi hasil.`;
 
-### 💡 Rekomendasi Strategis
-...solusi konkret untuk perbaikan...`;
+  const userPrompt = `Laporan Inventory ${storeName} (Periode: ${context?.period || 'Terbaru'}):
+- Total SKU Aktif: ${totalSohItem}
+- Nilai Stok Saat Ini: Rp ${totalStockValue.toLocaleString('id-ID')}
+- Item Out of Stock (0): ${zeroStockItems} SKU
+- Item Kritis (Berisiko Habis): ${criticalItems} SKU
+- Item Overstock (Waste): ${overstockItems} SKU
+- Produk Fast Moving (High Turnover): ${fastMoving} SKU
+- Produk Slow Moving: ${slowMoving} SKU
+- Produk Non-Moving (Dead Stock): ${nonMoving} SKU
 
-  const userPrompt = `Data Inventaris saat ini (${storeName}):
-- Total SKU: ${totalSohItem} item
-- Total Nilai Stok: Rp ${totalStockValue.toLocaleString('id-ID')}
-- Item Kritis (Dibawah Min): ${criticalItems} item
-- Item Overstock (Diatas Max): ${overstockItems} item
-- Item Fast Moving (DSI < 30 hr): ${fastMoving}
-- Item Slow Moving (DSI > 90 hr): ${slowMoving}
+TUGAS ANDA:
+1. Berikan Analisa Kritis mengenai "Waste" (pemborosan modal) di ${storeName}.
+2. Identifikasi Resiko Operasional terbesar yang tersembunyi di balik angka ini.
+3. Berikan Rekomendasi 3 Langkah Aksi Strategis yang harus dilakukan DALAM MINGGU INI untuk memperbaiki efisiensi.
+4. Jika ini analisa Nasional, sebutkan perbandingan performa antar cabang jika diperlukan.
 
-Mohon berikan analisa mendalam mengenai kondisi di atas, bandingkan dengan teori bisnis retail terbaik, jelaskan mengapa angka ini bermasalah (jika ada), dan berikan rekomendasi aksi yang harus diambil manajer toko untuk meningkatkan efisiensi modal kerja & ketersediaan stok.`;
+Format jawaban: Markdown professional dengan header yang tegas.`;
 
-  return askSumoPod(systemPrompt, userPrompt);
+  return askSumoPod(systemPrompt, userPrompt, 0.3);
 }
