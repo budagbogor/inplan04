@@ -1,3 +1,8 @@
+import { useState, useMemo, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import {
+  Activity, AlertTriangle, TrendingDown, Package, BarChart3,
+  ChevronDown, ChevronUp, Search, Gauge, ShieldCheck, PackageX,
   LayoutGrid, Calendar, TrendingUp, ShieldAlert, ChevronRight, Brain, Sparkles, Loader2, Send
 } from 'lucide-react';
 import { getInventoryAnalysis } from '@/lib/aiAgent';
