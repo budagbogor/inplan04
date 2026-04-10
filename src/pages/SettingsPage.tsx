@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Settings, Plus, Trash2, Save, RotateCcw, Search, Package, ChevronDown, Truck, Layers, BookOpen, RefreshCcw } from 'lucide-react';
+import { Settings, Plus, Trash2, Save, RotateCcw, Search, Package, ChevronDown, Truck, Layers, BookOpen, RefreshCcw, Brain, Key, Zap } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { getOrderSettings, saveOrderSettings, DEFAULT_ORDER_SETTINGS, syncSettin
 import { getSOHData, invalidateCache } from '@/lib/dataStore';
 import type { OrderSettings, SupplierLeadTime, SOHRecord } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { getAISettings, saveAISettings, POPULAR_MODELS, SUMOPOD_BASE_URL } from '@/lib/aiSettings';
 
 interface SkuInfo {
   kodeProduk: string;
@@ -90,6 +91,10 @@ export default function SettingsPage() {
   const [brandSearch, setBrandSearch] = useState('');
   const [skuSearch, setSkuSearch] = useState('');
   const [newSupplier, setNewSupplier] = useState('');
+  
+  // AI Settings State
+  const [aiSettings, setAiSettings] = useState(getAISettings());
+  const [isTestingAi, setIsTestingAi] = useState(false);
 
 
   const [refreshing, setRefreshing] = useState(false);
@@ -202,7 +207,35 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     saveOrderSettings(settings);
+    saveAISettings(aiSettings);
     toast.success('Pengaturan tersimpan');
+  };
+
+  const handleTestAi = async () => {
+    if (!aiSettings.apiKey) {
+      toast.error('Masukkan API Key terlebih dahulu');
+      return;
+    }
+    
+    setIsTestingAi(true);
+    try {
+      const resp = await fetch(`${SUMOPOD_BASE_URL}/models`, {
+        headers: {
+          'Authorization': `Bearer ${aiSettings.apiKey}`
+        }
+      });
+      
+      if (resp.ok) {
+        toast.success('Koneksi SumoPod Berhasil!');
+      } else {
+        const errData = await resp.json().catch(() => ({}));
+        toast.error(`Koneksi Gagal: ${errData.error?.message || resp.statusText}`);
+      }
+    } catch (err) {
+      toast.error('Gagal menghubungi server SumoPod');
+    } finally {
+      setIsTestingAi(false);
+    }
   };
 
   const handleReset = () => {
@@ -233,6 +266,59 @@ export default function SettingsPage() {
           </Button>
         </div>
       </PageHeader>
+
+      {/* ── Pengaturan AI Agent ── */}
+      <Section 
+        icon={Brain} 
+        title="SumoPod AI Settings" 
+        description="Konfigurasi asisten AI untuk analisa strategis"
+        badge="SumoPod API"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Pilihan Model AI</Label>
+              <select 
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={aiSettings.model}
+                onChange={e => setAiSettings(prev => ({ ...prev, model: e.target.value }))}
+              >
+                {POPULAR_MODELS.map(m => (
+                  <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-muted-foreground">Pilih model yang akan digunakan untuk analisa</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">API KEY (SumoPod)</Label>
+              <div className="relative">
+                <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input 
+                  type="password" 
+                  placeholder="sk-..." 
+                  className="pl-9"
+                  value={aiSettings.apiKey}
+                  onChange={e => setAiSettings(prev => ({ ...prev, apiKey: e.target.value }))}
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground">Key disimpan secara lokal di browser Anda</p>
+            </div>
+          </div>
+          
+          <div className="flex justify-end">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-1.5"
+              onClick={handleTestAi}
+              disabled={isTestingAi}
+            >
+              <Zap className={cn("w-3.5 h-3.5 text-amber-500", isTestingAi && "animate-pulse")} />
+              {isTestingAi ? 'Menghubungkan...' : 'Tes Koneksi'}
+            </Button>
+          </div>
+        </div>
+      </Section>
 
       {/* ── Parameter Umum ── */}
       <Section icon={Settings} title="Parameter Umum" description="Pengaturan default untuk perhitungan suggested order" defaultOpen>

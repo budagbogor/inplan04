@@ -20,6 +20,7 @@ import LoginPage from "./pages/LoginPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import ProductSearchPage from "./pages/ProductSearchPage";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { AIAssistant } from "./components/AIAssistant";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,7 @@ function AppShell() {
         <footer className="relative z-10 border-t py-4 text-center text-xs text-muted-foreground">
           Copyright @2026 Product & Service Development
         </footer>
+        <AIAssistant />
       </main>
     </div>
   );

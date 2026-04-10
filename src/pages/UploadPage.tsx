@@ -120,7 +120,8 @@ export default function UploadPage() {
       const currentFiles = await getUploadedFiles();
       const updated = [...currentFiles, newFile];
       await saveUploadedFiles(updated);
-      setFiles(updated);
+      const sortedFiles = await getUploadedFiles();
+      setFiles(sortedFiles);
       toast.success(`${records.length} data penjualan berhasil diupload untuk periode ${period}`);
     } else {
       const region = type === 'soh-jkt' ? 'jkt' as const : 'sby' as const;
@@ -138,7 +139,8 @@ export default function UploadPage() {
       const currentFiles = await getUploadedFiles();
       const updated = [...currentFiles, newFile];
       await saveUploadedFiles(updated);
-      setFiles(updated);
+      const sortedFiles = await getUploadedFiles();
+      setFiles(sortedFiles);
       toast.success(`${records.length} data stok ${region === 'jkt' ? 'Jakarta' : 'Surabaya'} berhasil diupload untuk periode ${period}`);
     }
   }, [currentPeriod]);

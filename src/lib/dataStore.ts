@@ -434,7 +434,18 @@ export async function getUploadedFiles(): Promise<UploadedFile[]> {
       recordCount: Number(f.recordCount),
       period: f.period,
     }))
-    .sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
+    .sort((a, b) => {
+      // Sort by period descending (newest first)
+      const periodA = String(a.period || '');
+      const periodB = String(b.period || '');
+      const periodCompare = periodB.localeCompare(periodA);
+      
+      if (periodCompare !== 0) return periodCompare;
+      
+      // If same period, sort by type descending (soh-sby, soh-jkt, sales)
+      // b.localeCompare(a) will put 'soh-sby' (starts with 'soh') before 'sales'
+      return String(b.type || '').localeCompare(String(a.type || ''));
+    });
 
   return uploadedFilesCache;
 }
