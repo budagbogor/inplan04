@@ -416,8 +416,8 @@ export default function AnalysisPage() {
       </div>
 
       {/* ─── AI Strategic Insight Section (Full Width) ─── */}
-      <section className="bg-card rounded-2xl border-2 border-primary/20 shadow-xl overflow-hidden futuristic-surface relative">
-        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+      <section className="bg-card rounded-2xl border-2 border-primary/20 shadow-xl overflow-hidden futuristic-surface relative print:border-none print:shadow-none print:bg-transparent print:rounded-none">
+        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none hide-in-print-ai">
           <Brain className="w-32 h-32 text-primary" />
         </div>
         
@@ -469,7 +469,7 @@ export default function AnalysisPage() {
           </div>
         </div>
 
-        <div className="p-6 sm:p-8 min-h-[200px] relative">
+        <div className="p-6 sm:p-8 min-h-[200px] relative print:p-0 print:m-0">
           {!aiAnalysisResult && !isAnalyzing ? (
             <div className="flex flex-col items-center justify-center text-center py-12 space-y-4">
               <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground/40">
@@ -495,7 +495,7 @@ export default function AnalysisPage() {
               animate={{ opacity: 1 }}
               className="space-y-6 text-foreground printable-ai-section"
             >
-              <div className="bg-muted/30 rounded-3xl p-6 sm:p-8 border shadow-inner">
+              <div className="bg-muted/30 rounded-3xl p-6 sm:p-8 border shadow-inner print:p-0 print:border-none print:bg-transparent print:shadow-none print:rounded-none">
                 {/* INJECT AIGraphics INFOGRAPHIC HERE */}
                 {aiAnalysisResult && <AIGraphics stats={aiAnalysisResult.stats} />}
 
