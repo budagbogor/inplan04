@@ -1,10 +1,11 @@
 import { cn } from '@/lib/utils';
 import { LucideIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 interface StatCardProps {
   title: string;
   value: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   icon: LucideIcon;
   variant?: 'default' | 'accent' | 'success' | 'warning' | 'destructive';
 }
@@ -35,7 +36,7 @@ export function StatCard({ title, value, subtitle, icon: Icon, variant = 'defaul
         <div className="space-y-1 min-w-0 flex-1">
           <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider leading-tight">{title}</p>
           <p className="text-xs sm:text-base lg:text-lg font-bold text-foreground tracking-tight break-all leading-tight">{value}</p>
-          {subtitle && <p className="text-[10px] sm:text-xs text-muted-foreground leading-tight">{subtitle}</p>}
+          {subtitle && <div className="text-[10px] sm:text-xs text-muted-foreground leading-tight">{subtitle}</div>}
         </div>
         <div className={cn("p-2 sm:p-2.5 rounded-lg shrink-0", iconVariants[variant])}>
           <Icon className="w-4 h-4 sm:w-5 sm:h-5" />

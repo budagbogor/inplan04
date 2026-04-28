@@ -57,9 +57,30 @@ function classifyAbc(soh: SOHRecord[], sales: SalesRecord[]): StoreAbc[] {
   for (const [kodeToko, records] of storeMap) {
     const first = records[0];
 
-    // Calculate total HPP value per SKU in this store
-    const items: AbcItem[] = records
-      .map(r => {
+    const skuMap = new Map<string, { kodeProduk: string; namaPanjang: string; brand: string; category: string; soh: number }>();
+    for (const r of records) {
+      const key = String(r.kodeProduk ?? '').trim();
+      if (!key) continue;
+      const existing = skuMap.get(key);
+      if (!existing) {
+        skuMap.set(key, {
+          kodeProduk: key,
+          namaPanjang: r.namaPanjang,
+          brand: r.brand,
+          category: r.category,
+          soh: r.soh,
+        });
+      } else {
+        existing.soh += r.soh;
+        if (!existing.namaPanjang && r.namaPanjang) existing.namaPanjang = r.namaPanjang;
+        if (!existing.brand && r.brand) existing.brand = r.brand;
+        if (!existing.category && r.category) existing.category = r.category;
+      }
+    }
+
+    // Calculate total HPP value per unique SKU in this store
+    const items: AbcItem[] = Array.from(skuMap.values())
+      .map((r) => {
         const hppEntry = hppMap.get(r.kodeProduk);
         const hpp = hppEntry ? Math.round(hppEntry.total / hppEntry.count) : 0;
         const totalHppValue = r.soh * hpp;
@@ -161,6 +182,57 @@ export default function InventoryPage() {
     return { countA, countB, countC, valueA, valueB, valueC };
   }, [storeAbcData]);
 
+  const nationalTotals = useMemo(() => {
+    const skuMap = new Map<string, { kodeProduk: string; namaPanjang: string; brand: string; category: string; totalHppValue: number }>();
+
+    for (const st of storeAbcData) {
+      for (const it of st.items) {
+        const key = String(it.kodeProduk ?? '').trim();
+        if (!key) continue;
+        const existing = skuMap.get(key);
+        if (!existing) {
+          skuMap.set(key, {
+            kodeProduk: key,
+            namaPanjang: it.namaPanjang,
+            brand: it.brand,
+            category: it.category,
+            totalHppValue: it.totalHppValue,
+          });
+        } else {
+          existing.totalHppValue += it.totalHppValue;
+          if (!existing.namaPanjang && it.namaPanjang) existing.namaPanjang = it.namaPanjang;
+          if (!existing.brand && it.brand) existing.brand = it.brand;
+          if (!existing.category && it.category) existing.category = it.category;
+        }
+      }
+    }
+
+    const items = Array.from(skuMap.values()).filter((i) => i.totalHppValue > 0).sort((a, b) => b.totalHppValue - a.totalHppValue);
+    const totalValue = items.reduce((s, i) => s + i.totalHppValue, 0);
+    if (totalValue <= 0) return { countA: 0, countB: 0, countC: 0, valueA: 0, valueB: 0, valueC: 0 };
+
+    let cumulative = 0;
+    let countA = 0, countB = 0, countC = 0;
+    let valueA = 0, valueB = 0, valueC = 0;
+
+    for (const item of items) {
+      cumulative += item.totalHppValue;
+      const cumulativePercent = (cumulative / totalValue) * 100;
+      if (cumulativePercent <= 80) {
+        countA += 1;
+        valueA += item.totalHppValue;
+      } else if (cumulativePercent <= 95) {
+        countB += 1;
+        valueB += item.totalHppValue;
+      } else {
+        countC += 1;
+        valueC += item.totalHppValue;
+      }
+    }
+
+    return { countA, countB, countC, valueA, valueB, valueC };
+  }, [storeAbcData]);
+
   if (loading) return <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground text-sm">Memuat data...</div>;
 
   if (storeAbcData.length === 0) {
@@ -182,25 +254,44 @@ export default function InventoryPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <StatCard 
           title="Total Kelas A" 
-          value={`${formatNumber(totals.countA)} SKU`} 
-          subtitle={`HPP: ${formatCurrency(totals.valueA)}`}
+          value={`${formatNumber(totals.countA)} SKU-per-toko`} 
+          subtitle={
+            <div className="space-y-0.5">
+              <div>HPP (SKU-per-toko): {formatCurrency(totals.valueA)}</div>
+              <div>Unik nasional: {formatNumber(nationalTotals.countA)} SKU • HPP: {formatCurrency(nationalTotals.valueA)}</div>
+            </div>
+          }
           icon={Package} 
           variant="destructive" 
         />
         <StatCard 
           title="Total Kelas B" 
-          value={`${formatNumber(totals.countB)} SKU`} 
-          subtitle={`HPP: ${formatCurrency(totals.valueB)}`}
+          value={`${formatNumber(totals.countB)} SKU-per-toko`} 
+          subtitle={
+            <div className="space-y-0.5">
+              <div>HPP (SKU-per-toko): {formatCurrency(totals.valueB)}</div>
+              <div>Unik nasional: {formatNumber(nationalTotals.countB)} SKU • HPP: {formatCurrency(nationalTotals.valueB)}</div>
+            </div>
+          }
           icon={Package} 
           variant="warning" 
         />
         <StatCard 
           title="Total Kelas C" 
-          value={`${formatNumber(totals.countC)} SKU`} 
-          subtitle={`HPP: ${formatCurrency(totals.valueC)}`}
+          value={`${formatNumber(totals.countC)} SKU-per-toko`} 
+          subtitle={
+            <div className="space-y-0.5">
+              <div>HPP (SKU-per-toko): {formatCurrency(totals.valueC)}</div>
+              <div>Unik nasional: {formatNumber(nationalTotals.countC)} SKU • HPP: {formatCurrency(nationalTotals.valueC)}</div>
+            </div>
+          }
           icon={Package} 
           variant="accent" 
         />
+      </div>
+      
+      <div className="rounded-xl border bg-muted/20 p-3 text-[10px] sm:text-xs text-muted-foreground leading-relaxed">
+        <span className="font-semibold text-foreground">Catatan:</span> “SKU-per-toko” menghitung kombinasi (toko, SKU) sehingga SKU yang sama bisa muncul di banyak toko. “Unik nasional” menghitung kodeProduk unik secara nasional (satu SKU hanya dihitung sekali) dan kelas ABC dihitung dari akumulasi nilai HPP semua toko.
       </div>
 
       <div className="relative max-w-full sm:max-w-sm">
@@ -271,8 +362,8 @@ export default function InventoryPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {store.items.map((item, j) => (
-                        <tr key={`${item.kodeProduk}-${j}`} className="border-t hover:bg-muted/20 transition-colors">
+                      {store.items.map((item) => (
+                        <tr key={item.kodeProduk} className="border-t hover:bg-muted/20 transition-colors">
                           <td className="px-3 py-2">
                             <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${abcColors[item.abcClass]}`}>
                               {item.abcClass}
