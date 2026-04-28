@@ -87,7 +87,7 @@ export function AIAssistant() {
       if (part.startsWith('**') && part.endsWith('**')) {
         return <strong key={i} className="font-bold text-foreground">{part.slice(2, -2)}</strong>;
       }
-      const italicParts = part.split(/(\*[^\*]+\*)/g);
+      const italicParts = part.split(/(\*[^*]+\*)/g);
       return italicParts.map((subPart, j) => {
         if (subPart.startsWith('*') && subPart.endsWith('*') && subPart.length > 2) {
           return <em key={`${i}-${j}`} className="italic font-medium text-foreground/90">{subPart.slice(1, -1)}</em>;
