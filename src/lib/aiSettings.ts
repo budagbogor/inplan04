@@ -1,12 +1,15 @@
-// AI Settings Management for SumoPod & OpenRouter
+// AI Settings Management for SumoPod, OpenRouter, and Gemini
+export type AIProvider = 'SumoPod' | 'OpenRouter' | 'Gemini';
+
 export interface AISettings {
-  provider: 'SumoPod' | 'OpenRouter' | string;
+  provider: AIProvider | string;
   model: string;
   apiKey: string;
 }
 
 export const SUMOPOD_BASE_URL = 'https://ai.sumopod.com/v1';
 export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 export const SUMOPOD_MODELS = [
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Cost-Effective)', provider: 'OpenAI' },
@@ -24,6 +27,12 @@ export const OPENROUTER_FREE_MODELS = [
   { id: 'meta-llama/llama-3.2-3b-instruct:free', name: 'Llama 3.2 3B Instruct (Free)', provider: 'Meta' },
   { id: 'qwen/qwen-2-72b-instruct:free', name: 'Qwen 2 72B Instruct (Free)', provider: 'Qwen' },
   { id: 'mistralai/mistral-7b-instruct:free', name: 'Mistral 7B Instruct (Free)', provider: 'Mistral' },
+];
+
+export const GEMINI_MODELS = [
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Google' },
+  { id: 'gemini-2.0-pro', name: 'Gemini 2.0 Pro', provider: 'Google' },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'Google' },
 ];
 
 const STORAGE_KEY = 'mobeng_ai_settings';

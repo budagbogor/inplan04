@@ -1,4 +1,4 @@
-import { getAISettings, SUMOPOD_BASE_URL, OPENROUTER_BASE_URL } from './aiSettings';
+import { getAISettings, SUMOPOD_BASE_URL, OPENROUTER_BASE_URL, GEMINI_BASE_URL } from './aiSettings';
 import { getSOHData, getSalesData } from './dataStore';
 
 export interface AIAnalysisResponse {
@@ -13,6 +13,45 @@ export async function askAI(systemPrompt: string, userPrompt: string, temperatur
   
   if (!settings.apiKey) {
     throw new Error('API Key AI belum diatur. Silakan ke halaman Pengaturan.');
+  }
+
+  if (settings.provider === 'Gemini') {
+    const url = `${GEMINI_BASE_URL}/models/${encodeURIComponent(settings.model)}:generateContent?key=${encodeURIComponent(settings.apiKey)}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `INSTRUCTIONS (INTERNAL SYSTEM):\n${systemPrompt}\n\nUSER REQUEST & DATA:\n${userPrompt}`,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature,
+          maxOutputTokens: 1500,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      let errorMsg = `API Error: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.error?.message || errorData.message || JSON.stringify(errorData);
+      } catch {
+        // ignore
+      }
+      throw new Error(errorMsg);
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text).filter(Boolean).join('') ?? '';
+    return text || 'Tidak ada respon dari AI.';
   }
 
   const isOpenRouter = settings.provider === 'OpenRouter';

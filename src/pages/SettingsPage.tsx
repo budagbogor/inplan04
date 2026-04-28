@@ -12,7 +12,7 @@ import { getOrderSettings, saveOrderSettings, DEFAULT_ORDER_SETTINGS, syncSettin
 import { getSOHData, invalidateCache } from '@/lib/dataStore';
 import type { OrderSettings, SupplierLeadTime, SOHRecord } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { getAISettings, saveAISettings, SUMOPOD_MODELS, OPENROUTER_FREE_MODELS, SUMOPOD_BASE_URL, OPENROUTER_BASE_URL } from '@/lib/aiSettings';
+import { getAISettings, saveAISettings, SUMOPOD_MODELS, OPENROUTER_FREE_MODELS, GEMINI_MODELS, SUMOPOD_BASE_URL, OPENROUTER_BASE_URL, GEMINI_BASE_URL } from '@/lib/aiSettings';
 
 interface SkuInfo {
   kodeProduk: string;
@@ -218,19 +218,36 @@ export default function SettingsPage() {
     }
     
     setIsTestingAi(true);
+    const isGemini = aiSettings.provider === 'Gemini';
     const isOpenRouter = aiSettings.provider === 'OpenRouter';
-    const checkUrl = isOpenRouter ? `${OPENROUTER_BASE_URL}/models` : `${SUMOPOD_BASE_URL}/models`;
+    const checkUrl = isGemini
+      ? `${GEMINI_BASE_URL}/models/${encodeURIComponent(aiSettings.model)}:generateContent?key=${encodeURIComponent(aiSettings.apiKey)}`
+      : (isOpenRouter ? `${OPENROUTER_BASE_URL}/models` : `${SUMOPOD_BASE_URL}/models`);
 
     try {
-      const headers: Record<string, string> = {
-        'Authorization': `Bearer ${aiSettings.apiKey}`
-      };
-      if (isOpenRouter) {
-        headers['HTTP-Referer'] = window.location.origin;
-        headers['X-Title'] = 'Mobeng Inventory Planner';
+      const headers: Record<string, string> = {};
+      let init: RequestInit = { headers };
+
+      if (isGemini) {
+        headers['Content-Type'] = 'application/json';
+        init = {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: 'ping' }] }],
+            generationConfig: { temperature: 0, maxOutputTokens: 8 },
+          }),
+        };
+      } else {
+        headers['Authorization'] = `Bearer ${aiSettings.apiKey}`;
+        if (isOpenRouter) {
+          headers['HTTP-Referer'] = window.location.origin;
+          headers['X-Title'] = 'Mobeng Inventory Planner';
+        }
+        init = { headers };
       }
 
-      const resp = await fetch(checkUrl, { headers });
+      const resp = await fetch(checkUrl, init);
       
       if (resp.ok) {
         toast.success(`Koneksi ${aiSettings.provider || 'API'} Berhasil!`);
@@ -291,11 +308,12 @@ export default function SettingsPage() {
                 onChange={e => setAiSettings(prev => ({ 
                   ...prev, 
                   provider: e.target.value,
-                  model: e.target.value === 'SumoPod' ? 'gpt-4o-mini' : 'openrouter/auto' 
+                  model: e.target.value === 'OpenRouter' ? 'openrouter/auto' : (e.target.value === 'Gemini' ? 'gemini-2.0-flash' : 'gpt-4o-mini')
                 }))}
               >
                 <option value="SumoPod">SumoPod API</option>
                 <option value="OpenRouter">OpenRouter (Free Auto-Switch / Other Models)</option>
+                <option value="Gemini">Google Gemini (Direct)</option>
               </select>
               <p className="text-[10px] text-muted-foreground">Pilih penyedia layanan kecerdasan buatan</p>
             </div>
@@ -306,7 +324,7 @@ export default function SettingsPage() {
                 value={aiSettings.model}
                 onChange={e => setAiSettings(prev => ({ ...prev, model: e.target.value }))}
               >
-                {(aiSettings.provider === 'OpenRouter' ? OPENROUTER_FREE_MODELS : SUMOPOD_MODELS).map(m => (
+                {(aiSettings.provider === 'OpenRouter' ? OPENROUTER_FREE_MODELS : aiSettings.provider === 'Gemini' ? GEMINI_MODELS : SUMOPOD_MODELS).map(m => (
                   <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
                 ))}
               </select>
@@ -318,7 +336,7 @@ export default function SettingsPage() {
                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input 
                   type="password" 
-                  placeholder="sk-..." 
+                  placeholder={aiSettings.provider === 'Gemini' ? 'AIza...' : 'sk-...'}
                   className="pl-9"
                   value={aiSettings.apiKey}
                   onChange={e => setAiSettings(prev => ({ ...prev, apiKey: e.target.value }))}
